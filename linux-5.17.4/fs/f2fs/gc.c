@@ -670,6 +670,7 @@ static int get_victim_by_default(struct f2fs_sb_info *sbi,
 {
 	struct dirty_seglist_info *dirty_i = DIRTY_I(sbi);
 	struct sit_info *sm = SIT_I(sbi);
+	struct f2fs_sm_info *sm_info = SM_I(sbi);
 	struct victim_sel_policy p;
 	unsigned int secno, last_victim;
 	unsigned int last_segment;
@@ -719,19 +720,32 @@ retry:
 		goto out;
 
 	if (__is_large_section(sbi) && p.alloc_mode == LFS) {
-		if (sbi->next_victim_seg[BG_GC] != NULL_SEGNO) {
-			p.min_segno = sbi->next_victim_seg[BG_GC];
+		printk("[[f2fs_log]]sbi is large section && p.alloc_mode = LFS [by jx]\n");
+		if (!list_empty(&sm_info->zone_fifo_list)) {
+			auto entry = list_first_entry(&sm_info->zone_fifo_list, struct zone_fifo_entry, list);
+			auto secno_temp = entry->zone_id;
+			p.min_segno = GET_SEG_FROM_SEC(sbi, secno_temp); // sbi->segs_per_sec * secno
 			*result = p.min_segno;
-			sbi->next_victim_seg[BG_GC] = NULL_SEGNO;
+			printk("[[ZLFS_INFO]]del secno = %u\n", secno_temp);
+			// 删除该 zone
+			list_del(&entry->list);
+			kfree(entry); // 如果 entry 是 kmalloc 分配的
 			goto got_result;
 		}
-		if (gc_type == FG_GC &&
-				sbi->next_victim_seg[FG_GC] != NULL_SEGNO) {
-			p.min_segno = sbi->next_victim_seg[FG_GC];
-			*result = p.min_segno;
-			sbi->next_victim_seg[FG_GC] = NULL_SEGNO;
-			goto got_result;
-		}
+		// if (sbi->next_victim_seg[BG_GC] != NULL_SEGNO) {
+		// 	p.min_segno = sbi->next_victim_seg[BG_GC];
+		// 	//gc next segno
+		// 	*result = p.min_segno;
+		// 	sbi->next_victim_seg[BG_GC] = NULL_SEGNO;
+		// 	goto got_result;
+		// }
+		// if (gc_type == FG_GC &&
+		// 		sbi->next_victim_seg[FG_GC] != NULL_SEGNO) {
+		// 	p.min_segno = sbi->next_victim_seg[FG_GC];
+		// 	*result = p.min_segno;
+		// 	sbi->next_victim_seg[FG_GC] = NULL_SEGNO;
+		// 	goto got_result;
+		// }
 	}
 
 	last_victim = sm->last_victim[p.gc_mode];
@@ -1508,6 +1522,30 @@ out:
 //static int is_alive_err = 0;
 //static int cnt_grep = 0;
 
+/* adjust if all blocks in segment is invalid */
+bool all_blocks_invalid(struct inode *inode)
+{
+    struct f2fs_sb_info *sbi = F2FS_I_SB(inode);
+    pgoff_t total_blocks = (i_size_read(inode) + PAGE_SIZE - 1) >> PAGE_SHIFT;
+    pgoff_t index;
+    int ret = true;
+
+    for (index = 0; index < total_blocks; index++) {
+        struct dnode_of_data dn;
+        set_new_dnode(&dn, inode, NULL, NULL, 0);
+        if (f2fs_get_dnode_of_data(&dn, index, LOOKUP_NODE) == 0) {
+            block_t blkaddr = dn.data_blkaddr;
+            if (blkaddr != NULL_ADDR) {
+                // 只要有一个块有效，返回false
+                f2fs_put_dnode(&dn);
+                return false;
+            }
+            f2fs_put_dnode(&dn);
+        }
+    }
+    return true;
+}
+
 /*
  * This function tries to get parent node of victim data block, and identifies
  * data block validity. If the block is valid, copy that with cold status and
@@ -1663,15 +1701,15 @@ next_step:
 			inode = f2fs_iget(sb, dni.ino);
 			if (IS_ERR(inode) || is_bad_inode(inode) ||
 					special_file(inode->i_mode)) {
-        printk("(%s:%d) bad inode", __func__, __LINE__);
+        		printk("(%s:%d) bad inode", __func__, __LINE__);
 				continue;
-      }
+      		}
 
 			if (!down_write_trylock(
 				&F2FS_I(inode)->i_gc_rwsem[WRITE])) {
 				iput(inode);
 				sbi->skipped_gc_rwsem++;
-        printk("(%s:%d) try lock failed", __func__, __LINE__);
+        		printk("(%s:%d) try lock failed", __func__, __LINE__);
 				continue;
 			}
 
@@ -1717,14 +1755,14 @@ next_step:
 			if (S_ISREG(inode->i_mode)) {
 				if (!down_write_trylock(&fi->i_gc_rwsem[READ])) {
 					sbi->skipped_gc_rwsem++;
-          printk("(%s:%d) try lock failed read phase 4", __func__, __LINE__);
+          			printk("(%s:%d) try lock failed read phase 4", __func__, __LINE__);
 					continue;
 				}
 				if (!down_write_trylock(
 						&fi->i_gc_rwsem[WRITE])) {
 					sbi->skipped_gc_rwsem++;
 					up_write(&fi->i_gc_rwsem[READ]);
-          printk("(%s:%d) try lock failed write phase 4", __func__, __LINE__);
+          			printk("(%s:%d) try lock failed write phase 4", __func__, __LINE__);
 					continue;
 				}
 				locked = true;
@@ -1735,16 +1773,29 @@ next_step:
 
 			start_bidx = f2fs_start_bidx_of_node(nofs, inode)
 								+ ofs_in_node;
-			if (f2fs_post_read_required(inode))
-				err = move_data_block(inode, start_bidx,
-							gc_type, segno, off);
-			else
-				err = move_data_page(inode, start_bidx, gc_type,
-								segno, off);
+			/* if file is hot,move data page */
+			if (1) {
+				if (f2fs_post_read_required(inode))
+					err = move_data_block(inode, start_bidx,
+								gc_type, segno, off);
+				else
+					err = move_data_page(inode, start_bidx, gc_type,
+									segno, off);
 
-			if (!err && (gc_type == FG_GC ||
-					f2fs_post_read_required(inode)))
-				submitted++;
+				if (!err && (gc_type == FG_GC ||
+						f2fs_post_read_required(inode)))
+					submitted++;
+			} else {
+			// Invalidate the data blocks of the cold file.
+				if (all_blocks_invalid(inode)) {
+					struct dentry *dentry = d_find_alias(inode);
+					struct dentry *parent = dget_parent(dentry);
+					vfs_unlink(d_inode(parent), dentry, NULL);
+					dput(parent);
+					dput(dentry);
+				}
+			}
+			
 
 			if (locked) {
 				up_write(&fi->i_gc_rwsem[WRITE]);
@@ -1825,7 +1876,7 @@ static int do_garbage_collect(struct f2fs_sb_info *sbi,
 	 * resulting in less than expected usable segments in the zone,
 	 * calculate the end segno in the zone which can be garbage collected
 	 */
-	// zone capcacity < zone size，因此重新计�? end_segno
+	// zone capcacity < zone size，因此重新计�? end_segno
 	if (f2fs_sb_has_blkzoned(sbi))
 		end_segno -= sbi->segs_per_sec -
 					f2fs_usable_segs_in_sec(sbi, segno);

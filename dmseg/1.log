@@ -1,0 +1,1000 @@
+[四 12月 18 14:49:33 2025] ACPI: PCI: Interrupt link LNKB configured for IRQ 1
+[四 12月 18 14:49:33 2025] ACPI: PCI: Interrupt link LNKC configured for IRQ 0
+[四 12月 18 14:49:33 2025] ACPI: PCI: Interrupt link LNKD configured for IRQ 0
+[四 12月 18 14:49:33 2025] ACPI: PCI: Interrupt link LNKE configured for IRQ 0
+[四 12月 18 14:49:33 2025] ACPI: PCI: Interrupt link LNKF configured for IRQ 0
+[四 12月 18 14:49:33 2025] ACPI: PCI: Interrupt link LNKG configured for IRQ 0
+[四 12月 18 14:49:33 2025] ACPI: PCI: Interrupt link LNKH configured for IRQ 0
+[四 12月 18 14:49:33 2025] iommu: Default domain type: Passthrough (set via kernel command line)
+[四 12月 18 14:49:33 2025] pci 0000:00:02.0: vgaarb: setting as boot VGA device
+[四 12月 18 14:49:33 2025] pci 0000:00:02.0: vgaarb: VGA device added: decodes=io+mem,owns=io+mem,locks=none
+[四 12月 18 14:49:33 2025] pci 0000:00:02.0: vgaarb: bridge control possible
+[四 12月 18 14:49:33 2025] vgaarb: loaded
+[四 12月 18 14:49:33 2025] SCSI subsystem initialized
+[四 12月 18 14:49:33 2025] libata version 3.00 loaded.
+[四 12月 18 14:49:33 2025] ACPI: bus type USB registered
+[四 12月 18 14:49:33 2025] usbcore: registered new interface driver usbfs
+[四 12月 18 14:49:33 2025] usbcore: registered new interface driver hub
+[四 12月 18 14:49:33 2025] usbcore: registered new device driver usb
+[四 12月 18 14:49:33 2025] pps_core: LinuxPPS API ver. 1 registered
+[四 12月 18 14:49:33 2025] pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti <giometti@linux.it>
+[四 12月 18 14:49:33 2025] PTP clock support registered
+[四 12月 18 14:49:33 2025] EDAC MC: Ver: 3.0.0
+[四 12月 18 14:49:33 2025] Registered efivars operations
+[四 12月 18 14:49:33 2025] NetLabel: Initializing
+[四 12月 18 14:49:33 2025] NetLabel:  domain hash size = 128
+[四 12月 18 14:49:33 2025] NetLabel:  protocols = UNLABELED CIPSOv4 CALIPSO
+[四 12月 18 14:49:33 2025] NetLabel:  unlabeled traffic allowed by default
+[四 12月 18 14:49:33 2025] mctp: management component transport protocol core
+[四 12月 18 14:49:33 2025] NET: Registered PF_MCTP protocol family
+[四 12月 18 14:49:33 2025] PCI: Using ACPI for IRQ routing
+[四 12月 18 14:49:33 2025] PCI: pci_cache_line_size set to 64 bytes
+[四 12月 18 14:49:33 2025] pci 0000:00:1f.5: can't claim BAR 0 [mem 0xfe010000-0xfe010fff]: no compatible bridge window
+[四 12月 18 14:49:33 2025] e820: reserve RAM buffer [mem 0x0009e000-0x0009ffff]
+[四 12月 18 14:49:33 2025] e820: reserve RAM buffer [mem 0x59c6d018-0x5bffffff]
+[四 12月 18 14:49:33 2025] e820: reserve RAM buffer [mem 0x63e5c000-0x63ffffff]
+[四 12月 18 14:49:33 2025] e820: reserve RAM buffer [mem 0x63e9c000-0x63ffffff]
+[四 12月 18 14:49:33 2025] e820: reserve RAM buffer [mem 0x6b321000-0x6bffffff]
+[四 12月 18 14:49:33 2025] e820: reserve RAM buffer [mem 0x6d8d6000-0x6fffffff]
+[四 12月 18 14:49:33 2025] e820: reserve RAM buffer [mem 0x7051f000-0x73ffffff]
+[四 12月 18 14:49:33 2025] e820: reserve RAM buffer [mem 0x76000000-0x77ffffff]
+[四 12月 18 14:49:33 2025] e820: reserve RAM buffer [mem 0x107f800000-0x107fffffff]
+[四 12月 18 14:49:33 2025] clocksource: Switched to clocksource tsc-early
+[四 12月 18 14:49:33 2025] VFS: Disk quotas dquot_6.6.0
+[四 12月 18 14:49:33 2025] VFS: Dquot-cache hash table entries: 512 (order 0, 4096 bytes)
+[四 12月 18 14:49:33 2025] FS-Cache: Loaded
+[四 12月 18 14:49:33 2025] AppArmor: AppArmor Filesystem Enabled
+[四 12月 18 14:49:33 2025] pnp: PnP ACPI init
+[四 12月 18 14:49:33 2025] system 00:00: [io  0x0290-0x029f] has been reserved
+[四 12月 18 14:49:33 2025] system 00:00: [io  0x0b00-0x0b1f] has been reserved
+[四 12月 18 14:49:33 2025] system 00:01: [io  0x0680-0x069f] has been reserved
+[四 12月 18 14:49:33 2025] system 00:01: [io  0x164e-0x164f] has been reserved
+[四 12月 18 14:49:33 2025] system 00:02: [io  0x1854-0x1857] has been reserved
+[四 12月 18 14:49:33 2025] pnp 00:03: disabling [mem 0xc0000000-0xcfffffff] because it overlaps 0000:00:02.0 BAR 9 [mem 0x00000000-0xdfffffff 64bit pref]
+[四 12月 18 14:49:33 2025] system 00:03: [mem 0xfedc0000-0xfedc7fff] has been reserved
+[四 12月 18 14:49:33 2025] system 00:03: [mem 0xfeda0000-0xfeda0fff] has been reserved
+[四 12月 18 14:49:33 2025] system 00:03: [mem 0xfeda1000-0xfeda1fff] has been reserved
+[四 12月 18 14:49:33 2025] system 00:03: [mem 0xfed20000-0xfed7ffff] could not be reserved
+[四 12月 18 14:49:33 2025] system 00:03: [mem 0xfed90000-0xfed93fff] could not be reserved
+[四 12月 18 14:49:33 2025] system 00:03: [mem 0xfed45000-0xfed8ffff] could not be reserved
+[四 12月 18 14:49:33 2025] system 00:03: [mem 0xfee00000-0xfeefffff] could not be reserved
+[四 12月 18 14:49:33 2025] system 00:04: [io  0x2000-0x20fe] has been reserved
+[四 12月 18 14:49:33 2025] pnp: PnP ACPI: found 6 devices
+[四 12月 18 14:49:33 2025] clocksource: acpi_pm: mask: 0xffffff max_cycles: 0xffffff, max_idle_ns: 2085701024 ns
+[四 12月 18 14:49:33 2025] NET: Registered PF_INET protocol family
+[四 12月 18 14:49:33 2025] IP idents hash table entries: 262144 (order: 9, 2097152 bytes, linear)
+[四 12月 18 14:49:33 2025] tcp_listen_portaddr_hash hash table entries: 32768 (order: 7, 524288 bytes, linear)
+[四 12月 18 14:49:33 2025] TCP established hash table entries: 524288 (order: 10, 4194304 bytes, linear)
+[四 12月 18 14:49:33 2025] TCP bind hash table entries: 65536 (order: 8, 1048576 bytes, linear)
+[四 12月 18 14:49:33 2025] TCP: Hash tables configured (established 524288 bind 65536)
+[四 12月 18 14:49:33 2025] MPTCP token hash table entries: 65536 (order: 8, 1572864 bytes, linear)
+[四 12月 18 14:49:33 2025] UDP hash table entries: 32768 (order: 8, 1048576 bytes, linear)
+[四 12月 18 14:49:33 2025] UDP-Lite hash table entries: 32768 (order: 8, 1048576 bytes, linear)
+[四 12月 18 14:49:33 2025] NET: Registered PF_UNIX/PF_LOCAL protocol family
+[四 12月 18 14:49:33 2025] NET: Registered PF_XDP protocol family
+[四 12月 18 14:49:33 2025] pci_bus 0000:00: max bus depth: 1 pci_try_num: 2
+[四 12月 18 14:49:33 2025] pci 0000:00:02.0: BAR 9: assigned [mem 0x4020000000-0x40ffffffff 64bit pref]
+[四 12月 18 14:49:33 2025] pci 0000:00:02.0: BAR 7: assigned [mem 0x4010000000-0x4016ffffff 64bit]
+[四 12月 18 14:49:33 2025] pci 0000:00:15.0: BAR 0: assigned [mem 0x4017000000-0x4017000fff 64bit]
+[四 12月 18 14:49:33 2025] pci 0000:00:15.1: BAR 0: assigned [mem 0x4017001000-0x4017001fff 64bit]
+[四 12月 18 14:49:33 2025] pci 0000:00:15.2: BAR 0: assigned [mem 0x4017002000-0x4017002fff 64bit]
+[四 12月 18 14:49:33 2025] pci 0000:00:1f.5: BAR 0: assigned [mem 0x80800000-0x80800fff]
+[四 12月 18 14:49:33 2025] pci 0000:00:01.0: PCI bridge to [bus 01]
+[四 12月 18 14:49:33 2025] pci 0000:00:01.0:   bridge window [mem 0x84f00000-0x84ffffff]
+[四 12月 18 14:49:33 2025] pci 0000:00:06.0: PCI bridge to [bus 02]
+[四 12月 18 14:49:33 2025] pci 0000:00:06.0:   bridge window [mem 0x84e00000-0x84efffff]
+[四 12月 18 14:49:33 2025] pci 0000:00:1a.0: PCI bridge to [bus 03]
+[四 12月 18 14:49:33 2025] pci 0000:00:1a.0:   bridge window [mem 0x84d00000-0x84dfffff]
+[四 12月 18 14:49:33 2025] pci 0000:00:1c.0: PCI bridge to [bus 04]
+[四 12月 18 14:49:33 2025] pci 0000:00:1c.0:   bridge window [mem 0x84c00000-0x84cfffff]
+[四 12月 18 14:49:33 2025] pci 0000:00:1c.2: PCI bridge to [bus 05]
+[四 12月 18 14:49:33 2025] pci 0000:00:1c.2:   bridge window [io  0x4000-0x4fff]
+[四 12月 18 14:49:33 2025] pci 0000:00:1c.2:   bridge window [mem 0x84b00000-0x84bfffff]
+[四 12月 18 14:49:33 2025] pci 0000:00:1c.4: PCI bridge to [bus 06]
+[四 12月 18 14:49:33 2025] pci 0000:00:1c.4:   bridge window [mem 0x84a00000-0x84afffff]
+[四 12月 18 14:49:33 2025] pci 0000:00:1c.4:   bridge window [mem 0x6000a00000-0x6000afffff 64bit pref]
+[四 12月 18 14:49:33 2025] pci 0000:00:1d.0: PCI bridge to [bus 07]
+[四 12月 18 14:49:33 2025] pci 0000:00:1d.0:   bridge window [io  0x3000-0x3fff]
+[四 12月 18 14:49:33 2025] pci 0000:00:1d.0:   bridge window [mem 0x84000000-0x849fffff]
+[四 12月 18 14:49:33 2025] pci 0000:00:1d.0:   bridge window [mem 0x6000000000-0x60009fffff 64bit pref]
+[四 12月 18 14:49:33 2025] pci_bus 0000:00: resource 4 [io  0x0000-0x0cf7 window]
+[四 12月 18 14:49:33 2025] pci_bus 0000:00: resource 5 [io  0x0d00-0xffff window]
+[四 12月 18 14:49:33 2025] pci_bus 0000:00: resource 6 [mem 0x000a0000-0x000bffff window]
+[四 12月 18 14:49:33 2025] pci_bus 0000:00: resource 7 [mem 0x000e0000-0x000effff window]
+[四 12月 18 14:49:33 2025] pci_bus 0000:00: resource 8 [mem 0x80800000-0xbfffffff window]
+[四 12月 18 14:49:33 2025] pci_bus 0000:00: resource 9 [mem 0x4000000000-0x7fffffffff window]
+[四 12月 18 14:49:33 2025] pci_bus 0000:01: resource 1 [mem 0x84f00000-0x84ffffff]
+[四 12月 18 14:49:33 2025] pci_bus 0000:02: resource 1 [mem 0x84e00000-0x84efffff]
+[四 12月 18 14:49:33 2025] pci_bus 0000:03: resource 1 [mem 0x84d00000-0x84dfffff]
+[四 12月 18 14:49:33 2025] pci_bus 0000:04: resource 1 [mem 0x84c00000-0x84cfffff]
+[四 12月 18 14:49:33 2025] pci_bus 0000:05: resource 0 [io  0x4000-0x4fff]
+[四 12月 18 14:49:33 2025] pci_bus 0000:05: resource 1 [mem 0x84b00000-0x84bfffff]
+[四 12月 18 14:49:33 2025] pci_bus 0000:06: resource 1 [mem 0x84a00000-0x84afffff]
+[四 12月 18 14:49:33 2025] pci_bus 0000:06: resource 2 [mem 0x6000a00000-0x6000afffff 64bit pref]
+[四 12月 18 14:49:33 2025] pci_bus 0000:07: resource 0 [io  0x3000-0x3fff]
+[四 12月 18 14:49:33 2025] pci_bus 0000:07: resource 1 [mem 0x84000000-0x849fffff]
+[四 12月 18 14:49:33 2025] pci_bus 0000:07: resource 2 [mem 0x6000000000-0x60009fffff 64bit pref]
+[四 12月 18 14:49:33 2025] pci 0000:04:00.0: PME# does not work under D0, disabling it
+[四 12月 18 14:49:33 2025] PCI: CLS 64 bytes, default 64
+[四 12月 18 14:49:33 2025] DMAR: No ATSR found
+[四 12月 18 14:49:33 2025] DMAR: No SATC found
+[四 12月 18 14:49:33 2025] DMAR: IOMMU feature fl1gp_support inconsistent
+[四 12月 18 14:49:33 2025] DMAR: IOMMU feature pgsel_inv inconsistent
+[四 12月 18 14:49:33 2025] DMAR: IOMMU feature nwfs inconsistent
+[四 12月 18 14:49:33 2025] DMAR: IOMMU feature dit inconsistent
+[四 12月 18 14:49:33 2025] DMAR: IOMMU feature sc_support inconsistent
+[四 12月 18 14:49:33 2025] DMAR: IOMMU feature dev_iotlb_support inconsistent
+[四 12月 18 14:49:33 2025] DMAR: dmar0: Using Queued invalidation
+[四 12月 18 14:49:33 2025] DMAR: dmar1: Using Queued invalidation
+[四 12月 18 14:49:33 2025] Trying to unpack rootfs image as initramfs...
+[四 12月 18 14:49:33 2025] pci 0000:00:00.0: Adding to iommu group 0
+[四 12月 18 14:49:33 2025] pci 0000:00:01.0: Adding to iommu group 1
+[四 12月 18 14:49:33 2025] pci 0000:00:02.0: Adding to iommu group 2
+[四 12月 18 14:49:33 2025] pci 0000:00:06.0: Adding to iommu group 3
+[四 12月 18 14:49:33 2025] pci 0000:00:0a.0: Adding to iommu group 4
+[四 12月 18 14:49:33 2025] pci 0000:00:0e.0: Adding to iommu group 5
+[四 12月 18 14:49:33 2025] pci 0000:00:14.0: Adding to iommu group 6
+[四 12月 18 14:49:33 2025] pci 0000:00:14.2: Adding to iommu group 6
+[四 12月 18 14:49:33 2025] pci 0000:00:15.0: Adding to iommu group 7
+[四 12月 18 14:49:33 2025] pci 0000:00:15.1: Adding to iommu group 7
+[四 12月 18 14:49:33 2025] pci 0000:00:15.2: Adding to iommu group 7
+[四 12月 18 14:49:33 2025] pci 0000:00:16.0: Adding to iommu group 8
+[四 12月 18 14:49:33 2025] pci 0000:00:17.0: Adding to iommu group 9
+[四 12月 18 14:49:33 2025] pci 0000:00:1a.0: Adding to iommu group 10
+[四 12月 18 14:49:33 2025] pci 0000:00:1c.0: Adding to iommu group 11
+[四 12月 18 14:49:33 2025] pci 0000:00:1c.2: Adding to iommu group 12
+[四 12月 18 14:49:33 2025] pci 0000:00:1c.4: Adding to iommu group 13
+[四 12月 18 14:49:33 2025] pci 0000:00:1d.0: Adding to iommu group 14
+[四 12月 18 14:49:33 2025] pci 0000:00:1f.0: Adding to iommu group 15
+[四 12月 18 14:49:33 2025] pci 0000:00:1f.3: Adding to iommu group 15
+[四 12月 18 14:49:33 2025] pci 0000:00:1f.4: Adding to iommu group 15
+[四 12月 18 14:49:33 2025] pci 0000:00:1f.5: Adding to iommu group 15
+[四 12月 18 14:49:33 2025] pci 0000:01:00.0: Adding to iommu group 16
+[四 12月 18 14:49:33 2025] pci 0000:02:00.0: Adding to iommu group 17
+[四 12月 18 14:49:33 2025] pci 0000:03:00.0: Adding to iommu group 18
+[四 12月 18 14:49:33 2025] pci 0000:04:00.0: Adding to iommu group 19
+[四 12月 18 14:49:33 2025] pci 0000:05:00.0: Adding to iommu group 20
+[四 12月 18 14:49:33 2025] pci 0000:06:00.0: Adding to iommu group 21
+[四 12月 18 14:49:33 2025] DMAR: Intel(R) Virtualization Technology for Directed I/O
+[四 12月 18 14:49:33 2025] PCI-DMA: Using software bounce buffering for IO (SWIOTLB)
+[四 12月 18 14:49:33 2025] software IO TLB: mapped [mem 0x000000005fe5c000-0x0000000063e5c000] (64MB)
+[四 12月 18 14:49:33 2025] clocksource: tsc: mask: 0xffffffffffffffff max_cycles: 0x1e71785e5dd, max_idle_ns: 440795244814 ns
+[四 12月 18 14:49:33 2025] clocksource: Switched to clocksource tsc
+[四 12月 18 14:49:33 2025] platform rtc_cmos: registered platform RTC device (no PNP device found)
+[四 12月 18 14:49:33 2025] Initialise system trusted keyrings
+[四 12月 18 14:49:33 2025] Key type blacklist registered
+[四 12月 18 14:49:33 2025] workingset: timestamp_bits=36 max_order=24 bucket_order=0
+[四 12月 18 14:49:33 2025] zbud: loaded
+[四 12月 18 14:49:33 2025] squashfs: version 4.0 (2009/01/31) Phillip Lougher
+[四 12月 18 14:49:33 2025] fuse: init (API version 7.36)
+[四 12月 18 14:49:33 2025] integrity: Platform Keyring initialized
+[四 12月 18 14:49:33 2025] Key type asymmetric registered
+[四 12月 18 14:49:33 2025] Asymmetric key parser 'x509' registered
+[四 12月 18 14:49:35 2025] Freeing initrd memory: 497860K
+[四 12月 18 14:49:35 2025] alg: self-tests for CTR-KDF (hmac(sha256)) passed
+[四 12月 18 14:49:35 2025] Block layer SCSI generic (bsg) driver version 0.4 loaded (major 242)
+[四 12月 18 14:49:35 2025] io scheduler mq-deadline registered
+[四 12月 18 14:49:35 2025] pcieport 0000:00:01.0: PME: Signaling with IRQ 122
+[四 12月 18 14:49:35 2025] pcieport 0000:00:01.0: AER: enabled with IRQ 122
+[四 12月 18 14:49:35 2025] pcieport 0000:00:06.0: PME: Signaling with IRQ 123
+[四 12月 18 14:49:35 2025] pcieport 0000:00:06.0: AER: enabled with IRQ 123
+[四 12月 18 14:49:35 2025] pcieport 0000:00:1a.0: PME: Signaling with IRQ 124
+[四 12月 18 14:49:35 2025] pcieport 0000:00:1a.0: AER: enabled with IRQ 124
+[四 12月 18 14:49:35 2025] pcieport 0000:00:1c.0: PME: Signaling with IRQ 125
+[四 12月 18 14:49:35 2025] pcieport 0000:00:1c.0: AER: enabled with IRQ 125
+[四 12月 18 14:49:35 2025] pcieport 0000:00:1c.2: PME: Signaling with IRQ 126
+[四 12月 18 14:49:35 2025] pcieport 0000:00:1c.2: AER: enabled with IRQ 126
+[四 12月 18 14:49:35 2025] pcieport 0000:00:1c.4: PME: Signaling with IRQ 127
+[四 12月 18 14:49:35 2025] pcieport 0000:00:1c.4: AER: enabled with IRQ 127
+[四 12月 18 14:49:35 2025] pcieport 0000:00:1d.0: PME: Signaling with IRQ 128
+[四 12月 18 14:49:35 2025] pcieport 0000:00:1d.0: pciehp: Slot #0 AttnBtn- PwrCtrl- MRL- AttnInd- PwrInd- HotPlug+ Surprise+ Interlock- NoCompl+ IbPresDis- LLActRep+
+[四 12月 18 14:49:35 2025] shpchp: Standard Hot Plug PCI Controller Driver version: 0.4
+[四 12月 18 14:49:35 2025] Monitor-Mwait will be used to enter C-1 state
+[四 12月 18 14:49:35 2025] Monitor-Mwait will be used to enter C-2 state
+[四 12月 18 14:49:35 2025] Monitor-Mwait will be used to enter C-3 state
+[四 12月 18 14:49:35 2025] ACPI: \_SB_.PR00: Found 3 idle states
+[四 12月 18 14:49:35 2025] input: Sleep Button as /devices/LNXSYSTM:00/LNXSYBUS:00/PNP0C0E:00/input/input0
+[四 12月 18 14:49:35 2025] ACPI: button: Sleep Button [SLPB]
+[四 12月 18 14:49:35 2025] input: Power Button as /devices/LNXSYSTM:00/LNXSYBUS:00/PNP0C0C:00/input/input1
+[四 12月 18 14:49:35 2025] ACPI: button: Power Button [PWRB]
+[四 12月 18 14:49:35 2025] input: Power Button as /devices/LNXSYSTM:00/LNXPWRBN:00/input/input2
+[四 12月 18 14:49:35 2025] ACPI: button: Power Button [PWRF]
+[四 12月 18 14:49:35 2025] smpboot: Estimated ratio of average max frequency by base frequency (times 1024): 2291
+[四 12月 18 14:49:35 2025] thermal LNXTHERM:00: registered as thermal_zone0
+[四 12月 18 14:49:35 2025] ACPI: thermal: Thermal Zone [TZ00] (28 C)
+[四 12月 18 14:49:35 2025] Serial: 8250/16550 driver, 32 ports, IRQ sharing enabled
+[四 12月 18 14:49:35 2025] serial8250: ttyS0 at I/O 0x3f8 (irq = 4, base_baud = 115200) is a 16550A
+[四 12月 18 14:49:35 2025] hpet_acpi_add: no address or irqs in _CRS
+[四 12月 18 14:49:35 2025] Linux agpgart interface v0.103
+[四 12月 18 14:49:35 2025] ACPI: bus type drm_connector registered
+[四 12月 18 14:49:35 2025] loop: module loaded
+[四 12月 18 14:49:35 2025] tun: Universal TUN/TAP device driver, 1.6
+[四 12月 18 14:49:35 2025] PPP generic driver version 2.4.2
+[四 12月 18 14:49:35 2025] ehci_hcd: USB 2.0 'Enhanced' Host Controller (EHCI) Driver
+[四 12月 18 14:49:35 2025] ehci-pci: EHCI PCI platform driver
+[四 12月 18 14:49:35 2025] ehci-platform: EHCI generic platform driver
+[四 12月 18 14:49:35 2025] ohci_hcd: USB 1.1 'Open' Host Controller (OHCI) Driver
+[四 12月 18 14:49:35 2025] ohci-pci: OHCI PCI platform driver
+[四 12月 18 14:49:35 2025] ohci-platform: OHCI generic platform driver
+[四 12月 18 14:49:35 2025] uhci_hcd: USB Universal Host Controller Interface driver
+[四 12月 18 14:49:35 2025] i8042: PNP: No PS/2 controller found.
+[四 12月 18 14:49:35 2025] mousedev: PS/2 mouse device common for all mice
+[四 12月 18 14:49:35 2025] rtc_cmos rtc_cmos: RTC can wake from S4
+[四 12月 18 14:49:35 2025] rtc_cmos rtc_cmos: registered as rtc0
+[四 12月 18 14:49:35 2025] rtc_cmos rtc_cmos: setting system clock to 2025-12-18T06:49:35 UTC (1766040575)
+[四 12月 18 14:49:35 2025] rtc_cmos rtc_cmos: alarms up to one month, y3k, 114 bytes nvram
+[四 12月 18 14:49:35 2025] i2c_dev: i2c /dev entries driver
+[四 12月 18 14:49:35 2025] device-mapper: core: CONFIG_IMA_DISABLE_HTABLE is disabled. Duplicate IMA measurements will not be recorded in the IMA log.
+[四 12月 18 14:49:35 2025] device-mapper: uevent: version 1.0.3
+[四 12月 18 14:49:35 2025] device-mapper: ioctl: 4.45.0-ioctl (2021-03-22) initialised: dm-devel@redhat.com
+[四 12月 18 14:49:35 2025] platform eisa.0: Probing EISA bus 0
+[四 12月 18 14:49:35 2025] platform eisa.0: EISA: Cannot allocate resource for mainboard
+[四 12月 18 14:49:35 2025] platform eisa.0: Cannot allocate resource for EISA slot 1
+[四 12月 18 14:49:35 2025] platform eisa.0: Cannot allocate resource for EISA slot 2
+[四 12月 18 14:49:35 2025] platform eisa.0: Cannot allocate resource for EISA slot 3
+[四 12月 18 14:49:35 2025] platform eisa.0: Cannot allocate resource for EISA slot 4
+[四 12月 18 14:49:35 2025] platform eisa.0: Cannot allocate resource for EISA slot 5
+[四 12月 18 14:49:35 2025] platform eisa.0: Cannot allocate resource for EISA slot 6
+[四 12月 18 14:49:35 2025] platform eisa.0: Cannot allocate resource for EISA slot 7
+[四 12月 18 14:49:35 2025] platform eisa.0: Cannot allocate resource for EISA slot 8
+[四 12月 18 14:49:35 2025] platform eisa.0: EISA: Detected 0 cards
+[四 12月 18 14:49:35 2025] intel_pstate: Intel P-state driver initializing
+[四 12月 18 14:49:35 2025] intel_pstate: HWP enabled
+[四 12月 18 14:49:35 2025] ledtrig-cpu: registered to indicate activity on CPUs
+[四 12月 18 14:49:35 2025] [drm] Initialized simpledrm 1.0.0 20200625 for simple-framebuffer.0 on minor 0
+[四 12月 18 14:49:35 2025] fbcon: Deferring console take-over
+[四 12月 18 14:49:35 2025] simple-framebuffer simple-framebuffer.0: [drm] fb0: simpledrmdrmfb frame buffer device
+[四 12月 18 14:49:35 2025] drop_monitor: Initializing network drop monitor service
+[四 12月 18 14:49:35 2025] NET: Registered PF_INET6 protocol family
+[四 12月 18 14:49:35 2025] Segment Routing with IPv6
+[四 12月 18 14:49:35 2025] In-situ OAM (IOAM) with IPv6
+[四 12月 18 14:49:35 2025] NET: Registered PF_PACKET protocol family
+[四 12月 18 14:49:35 2025] Key type dns_resolver registered
+[四 12月 18 14:49:35 2025] microcode: sig=0x90672, pf=0x2, revision=0x3a
+[四 12月 18 14:49:35 2025] microcode: Microcode Update Driver: v2.2.
+[四 12月 18 14:49:35 2025] IPI shorthand broadcast: enabled
+[四 12月 18 14:49:35 2025] sched_clock: Marking stable (2046484051, 6223913)->(2097292271, -44584307)
+[四 12月 18 14:49:35 2025] registered taskstats version 1
+[四 12月 18 14:49:35 2025] Loading compiled-in X.509 certificates
+[四 12月 18 14:49:35 2025] Loaded X.509 cert 'Build time autogenerated kernel key: c182d54ec01f5022722657ecc6d1cfcbc7897667'
+[四 12月 18 14:49:35 2025] zswap: loaded using pool lzo/zbud
+[四 12月 18 14:49:35 2025] Key type ._fscrypt registered
+[四 12月 18 14:49:35 2025] Key type .fscrypt registered
+[四 12月 18 14:49:35 2025] Key type fscrypt-provisioning registered
+[四 12月 18 14:49:35 2025] Key type trusted registered
+[四 12月 18 14:49:35 2025] Key type encrypted registered
+[四 12月 18 14:49:35 2025] AppArmor: AppArmor sha1 policy hashing enabled
+[四 12月 18 14:49:35 2025] integrity: Loading X.509 certificate: UEFI:db
+[四 12月 18 14:49:35 2025] integrity: Loaded X.509 cert 'ASUSTeK MotherBoard SW Key Certificate: da83b990422ebc8c441f8d8b039a65a2'
+[四 12月 18 14:49:35 2025] integrity: Loading X.509 certificate: UEFI:db
+[四 12月 18 14:49:35 2025] integrity: Loaded X.509 cert 'ASUSTeK Notebook SW Key Certificate: b8e581e4df77a5bb4282d5ccfc00c071'
+[四 12月 18 14:49:35 2025] integrity: Loading X.509 certificate: UEFI:db
+[四 12月 18 14:49:35 2025] integrity: Loaded X.509 cert 'Microsoft Corporation UEFI CA 2011: 13adbf4309bd82709c8cd54f316ed522988a1bd4'
+[四 12月 18 14:49:35 2025] integrity: Loading X.509 certificate: UEFI:db
+[四 12月 18 14:49:35 2025] integrity: Loaded X.509 cert 'Microsoft Windows Production PCA 2011: a92902398e16c49778cd90f99e4f9ae17c55af53'
+[四 12月 18 14:49:35 2025] integrity: Loading X.509 certificate: UEFI:db
+[四 12月 18 14:49:35 2025] integrity: Loaded X.509 cert 'Canonical Ltd. Master Certificate Authority: ad91990bc22ab1f517048c23b6655a268e345a63'
+[四 12月 18 14:49:35 2025] integrity: Loading X.509 certificate: UEFI:db
+[四 12月 18 14:49:35 2025] integrity: Loaded X.509 cert 'Microsoft UEFI CA 2023: 81aa6b3244c935bce0d6628af39827421e32497d'
+[四 12月 18 14:49:35 2025] integrity: Loading X.509 certificate: UEFI:db
+[四 12月 18 14:49:35 2025] integrity: Loaded X.509 cert 'Microsoft Corporation: Windows UEFI CA 2023: aefc5fbbbe055d8f8daa585473499417ab5a5272'
+[四 12月 18 14:49:35 2025] Loading compiled-in module X.509 certificates
+[四 12月 18 14:49:35 2025] Loaded X.509 cert 'Build time autogenerated kernel key: c182d54ec01f5022722657ecc6d1cfcbc7897667'
+[四 12月 18 14:49:35 2025] ima: Allocated hash algorithm: sha256
+[四 12月 18 14:49:35 2025] ima: No architecture policies found
+[四 12月 18 14:49:35 2025] evm: Initialising EVM extended attributes:
+[四 12月 18 14:49:35 2025] evm: security.selinux
+[四 12月 18 14:49:35 2025] evm: security.SMACK64
+[四 12月 18 14:49:35 2025] evm: security.SMACK64EXEC
+[四 12月 18 14:49:35 2025] evm: security.SMACK64TRANSMUTE
+[四 12月 18 14:49:35 2025] evm: security.SMACK64MMAP
+[四 12月 18 14:49:35 2025] evm: security.apparmor
+[四 12月 18 14:49:35 2025] evm: security.ima
+[四 12月 18 14:49:35 2025] evm: security.capability
+[四 12月 18 14:49:35 2025] evm: HMAC attrs: 0x1
+[四 12月 18 14:49:35 2025] PM:   Magic number: 5:811:822
+[四 12月 18 14:49:35 2025] RAS: Correctable Errors collector initialized.
+[四 12月 18 14:49:35 2025] Freeing unused decrypted memory: 2036K
+[四 12月 18 14:49:35 2025] Freeing unused kernel image (initmem) memory: 2804K
+[四 12月 18 14:49:35 2025] Write protecting the kernel read-only data: 32768k
+[四 12月 18 14:49:35 2025] Freeing unused kernel image (text/rodata gap) memory: 2036K
+[四 12月 18 14:49:35 2025] Freeing unused kernel image (rodata/data gap) memory: 1504K
+[四 12月 18 14:49:35 2025] x86/mm: Checked W+X mappings: passed, no W+X pages found.
+[四 12月 18 14:49:35 2025] Run /init as init process
+[四 12月 18 14:49:35 2025]   with arguments:
+[四 12月 18 14:49:35 2025]     /init
+[四 12月 18 14:49:35 2025]     splash
+[四 12月 18 14:49:35 2025]   with environment:
+[四 12月 18 14:49:35 2025]     HOME=/
+[四 12月 18 14:49:35 2025]     TERM=linux
+[四 12月 18 14:49:35 2025]     BOOT_IMAGE=/boot/vmlinuz-5.17.4
+[四 12月 18 14:49:35 2025] vmd 0000:00:0e.0: enabling device (0000 -> 0002)
+[四 12月 18 14:49:35 2025] acpi PNP0C14:01: duplicate WMI GUID 05901221-D566-11D1-B2F0-00A0C9062910 (first instance was on PNP0C14:00)
+[四 12月 18 14:49:35 2025] acpi PNP0C14:02: duplicate WMI GUID 05901221-D566-11D1-B2F0-00A0C9062910 (first instance was on PNP0C14:00)
+[四 12月 18 14:49:35 2025] vmd 0000:00:0e.0: PCI host bridge to bus 10000:e0
+[四 12月 18 14:49:35 2025] pci_bus 10000:e0: root bus resource [bus e0-ff]
+[四 12月 18 14:49:35 2025] pci_bus 10000:e0: root bus resource [mem 0x82000000-0x83ffffff]
+[四 12月 18 14:49:35 2025] pci_bus 10000:e0: root bus resource [mem 0x6005102000-0x60051fffff 64bit]
+[四 12月 18 14:49:35 2025] acpi PNP0C14:03: duplicate WMI GUID 05901221-D566-11D1-B2F0-00A0C9062910 (first instance was on PNP0C14:00)
+[四 12月 18 14:49:35 2025] xhci_hcd 0000:00:14.0: xHCI Host Controller
+[四 12月 18 14:49:35 2025] xhci_hcd 0000:00:14.0: new USB bus registered, assigned bus number 1
+[四 12月 18 14:49:35 2025] acpi PNP0C14:04: duplicate WMI GUID 05901221-D566-11D1-B2F0-00A0C9062910 (first instance was on PNP0C14:00)
+[四 12月 18 14:49:35 2025] ahci 0000:00:17.0: version 3.0
+[四 12月 18 14:49:35 2025] ahci 0000:00:17.0: enabling device (0000 -> 0003)
+[四 12月 18 14:49:35 2025] ahci 0000:00:17.0: AHCI 0001.0301 32 slots 4 ports 6 Gbps 0xf0 impl SATA mode
+[四 12月 18 14:49:35 2025] ahci 0000:00:17.0: flags: 64bit ncq sntf led clo only pio slum part ems deso sadm sds 
+[四 12月 18 14:49:35 2025] xhci_hcd 0000:00:14.0: hcc params 0x20007fc1 hci version 0x120 quirks 0x0000000000009810
+[四 12月 18 14:49:35 2025] usb usb1: New USB device found, idVendor=1d6b, idProduct=0002, bcdDevice= 5.17
+[四 12月 18 14:49:35 2025] usb usb1: New USB device strings: Mfr=3, Product=2, SerialNumber=1
+[四 12月 18 14:49:35 2025] usb usb1: Product: xHCI Host Controller
+[四 12月 18 14:49:35 2025] usb usb1: Manufacturer: Linux 5.17.4 xhci-hcd
+[四 12月 18 14:49:35 2025] usb usb1: SerialNumber: 0000:00:14.0
+[四 12月 18 14:49:35 2025] hub 1-0:1.0: USB hub found
+[四 12月 18 14:49:35 2025] hub 1-0:1.0: 16 ports detected
+[四 12月 18 14:49:35 2025] xhci_hcd 0000:00:14.0: xHCI Host Controller
+[四 12月 18 14:49:35 2025] xhci_hcd 0000:00:14.0: new USB bus registered, assigned bus number 2
+[四 12月 18 14:49:35 2025] xhci_hcd 0000:00:14.0: Host supports USB 3.2 Enhanced SuperSpeed
+[四 12月 18 14:49:35 2025] usb usb2: New USB device found, idVendor=1d6b, idProduct=0003, bcdDevice= 5.17
+[四 12月 18 14:49:35 2025] usb usb2: New USB device strings: Mfr=3, Product=2, SerialNumber=1
+[四 12月 18 14:49:35 2025] usb usb2: Product: xHCI Host Controller
+[四 12月 18 14:49:35 2025] usb usb2: Manufacturer: Linux 5.17.4 xhci-hcd
+[四 12月 18 14:49:35 2025] usb usb2: SerialNumber: 0000:00:14.0
+[四 12月 18 14:49:35 2025] hub 2-0:1.0: USB hub found
+[四 12月 18 14:49:35 2025] hub 2-0:1.0: 9 ports detected
+[四 12月 18 14:49:35 2025] nvme 0000:01:00.0: platform quirk: setting simple suspend
+[四 12月 18 14:49:35 2025] usb: port power management may be unreliable
+[四 12月 18 14:49:35 2025] nvme nvme0: pci function 0000:01:00.0
+[四 12月 18 14:49:35 2025] nvme 0000:02:00.0: platform quirk: setting simple suspend
+[四 12月 18 14:49:35 2025] nvme nvme1: pci function 0000:02:00.0
+[四 12月 18 14:49:35 2025] nvme 0000:03:00.0: platform quirk: setting simple suspend
+[四 12月 18 14:49:35 2025] nvme nvme2: pci function 0000:03:00.0
+[四 12月 18 14:49:35 2025] vmd 0000:00:0e.0: Bound to PCI domain 10000
+[四 12月 18 14:49:35 2025] nvme 0000:06:00.0: platform quirk: setting simple suspend
+[四 12月 18 14:49:35 2025] nvme nvme3: pci function 0000:06:00.0
+[四 12月 18 14:49:35 2025] r8169 0000:05:00.0: enabling device (0000 -> 0003)
+[四 12月 18 14:49:35 2025] r8169 0000:05:00.0: can't disable ASPM; OS doesn't have ASPM control
+[四 12月 18 14:49:35 2025] xhci_hcd 0000:04:00.0: xHCI Host Controller
+[四 12月 18 14:49:35 2025] xhci_hcd 0000:04:00.0: new USB bus registered, assigned bus number 3
+[四 12月 18 14:49:35 2025] scsi host0: ahci
+[四 12月 18 14:49:35 2025] scsi host1: ahci
+[四 12月 18 14:49:35 2025] scsi host2: ahci
+[四 12月 18 14:49:35 2025] scsi host3: ahci
+[四 12月 18 14:49:35 2025] scsi host4: ahci
+[四 12月 18 14:49:35 2025] scsi host5: ahci
+[四 12月 18 14:49:35 2025] scsi host6: ahci
+[四 12月 18 14:49:35 2025] scsi host7: ahci
+[四 12月 18 14:49:35 2025] ata1: DUMMY
+[四 12月 18 14:49:35 2025] ata2: DUMMY
+[四 12月 18 14:49:35 2025] ata3: DUMMY
+[四 12月 18 14:49:35 2025] ata4: DUMMY
+[四 12月 18 14:49:35 2025] ata5: SATA max UDMA/133 abar m2048@0x85002000 port 0x85002300 irq 148
+[四 12月 18 14:49:35 2025] ata6: SATA max UDMA/133 abar m2048@0x85002000 port 0x85002380 irq 148
+[四 12月 18 14:49:35 2025] ata7: SATA max UDMA/133 abar m2048@0x85002000 port 0x85002400 irq 148
+[四 12月 18 14:49:35 2025] ata8: SATA max UDMA/133 abar m2048@0x85002000 port 0x85002480 irq 148
+[四 12月 18 14:49:35 2025] r8169 0000:05:00.0 eth0: RTL8125B, cc:28:aa:04:07:0e, XID 641, IRQ 154
+[四 12月 18 14:49:35 2025] r8169 0000:05:00.0 eth0: jumbo features [frames: 9194 bytes, tx checksumming: ko]
+[四 12月 18 14:49:35 2025] nvme nvme0: Shutdown timeout set to 10 seconds
+[四 12月 18 14:49:35 2025] nvme nvme1: Shutdown timeout set to 8 seconds
+[四 12月 18 14:49:35 2025] nvme nvme2: Shutdown timeout set to 8 seconds
+[四 12月 18 14:49:35 2025] nvme nvme3: 20/0/0 default/read/poll queues
+[四 12月 18 14:49:35 2025] nvme nvme0: allocated 64 MiB host memory buffer.
+[四 12月 18 14:49:35 2025] nvme nvme2: allocated 64 MiB host memory buffer.
+[四 12月 18 14:49:35 2025] nvme nvme1: allocated 64 MiB host memory buffer.
+[四 12月 18 14:49:35 2025] nvme nvme0: 16/0/0 default/read/poll queues
+[四 12月 18 14:49:35 2025] xhci_hcd 0000:04:00.0: hcc params 0x0200ef80 hci version 0x110 quirks 0x0000000000800010
+[四 12月 18 14:49:35 2025] usb usb3: New USB device found, idVendor=1d6b, idProduct=0002, bcdDevice= 5.17
+[四 12月 18 14:49:35 2025] usb usb3: New USB device strings: Mfr=3, Product=2, SerialNumber=1
+[四 12月 18 14:49:35 2025] usb usb3: Product: xHCI Host Controller
+[四 12月 18 14:49:35 2025] usb usb3: Manufacturer: Linux 5.17.4 xhci-hcd
+[四 12月 18 14:49:35 2025] usb usb3: SerialNumber: 0000:04:00.0
+[四 12月 18 14:49:35 2025] hub 3-0:1.0: USB hub found
+[四 12月 18 14:49:35 2025] hub 3-0:1.0: 2 ports detected
+[四 12月 18 14:49:35 2025] xhci_hcd 0000:04:00.0: xHCI Host Controller
+[四 12月 18 14:49:35 2025] xhci_hcd 0000:04:00.0: new USB bus registered, assigned bus number 4
+[四 12月 18 14:49:35 2025] xhci_hcd 0000:04:00.0: Host supports USB 3.1 Enhanced SuperSpeed
+[四 12月 18 14:49:35 2025] usb usb4: We don't know the algorithms for LPM for this host, disabling LPM.
+[四 12月 18 14:49:35 2025] usb usb4: New USB device found, idVendor=1d6b, idProduct=0003, bcdDevice= 5.17
+[四 12月 18 14:49:35 2025] usb usb4: New USB device strings: Mfr=3, Product=2, SerialNumber=1
+[四 12月 18 14:49:35 2025] usb usb4: Product: xHCI Host Controller
+[四 12月 18 14:49:35 2025] usb usb4: Manufacturer: Linux 5.17.4 xhci-hcd
+[四 12月 18 14:49:35 2025] usb usb4: SerialNumber: 0000:04:00.0
+[四 12月 18 14:49:35 2025] hub 4-0:1.0: USB hub found
+[四 12月 18 14:49:35 2025] hub 4-0:1.0: 2 ports detected
+[四 12月 18 14:49:35 2025] nvme nvme2: 12/0/0 default/read/poll queues
+[四 12月 18 14:49:35 2025] nvme nvme1: 12/0/0 default/read/poll queues
+[四 12月 18 14:49:35 2025]  nvme1n1: p1 p2
+[四 12月 18 14:49:35 2025] usb 1-2: new full-speed USB device number 2 using xhci_hcd
+[四 12月 18 14:49:35 2025] ata6: SATA link down (SStatus 4 SControl 300)
+[四 12月 18 14:49:35 2025] ata5: SATA link down (SStatus 4 SControl 300)
+[四 12月 18 14:49:35 2025] ata8: SATA link down (SStatus 4 SControl 300)
+[四 12月 18 14:49:35 2025] ata7: SATA link down (SStatus 4 SControl 300)
+[四 12月 18 14:49:35 2025] r8169 0000:05:00.0 eno1: renamed from eth0
+[四 12月 18 14:49:35 2025] random: fast init done
+[四 12月 18 14:49:35 2025] usb 1-2: config 1 has an invalid interface number: 2 but max is 1
+[四 12月 18 14:49:35 2025] usb 1-2: config 1 has no interface number 1
+[四 12月 18 14:49:35 2025] usb 1-2: New USB device found, idVendor=0b05, idProduct=19af, bcdDevice= 1.00
+[四 12月 18 14:49:35 2025] usb 1-2: New USB device strings: Mfr=1, Product=2, SerialNumber=3
+[四 12月 18 14:49:35 2025] usb 1-2: Product: AURA LED Controller
+[四 12月 18 14:49:35 2025] usb 1-2: Manufacturer: AsusTek Computer Inc.
+[四 12月 18 14:49:35 2025] usb 1-2: SerialNumber: 9876543210
+[四 12月 18 14:49:35 2025] usb 2-9: new SuperSpeed USB device number 2 using xhci_hcd
+[四 12月 18 14:49:35 2025] usb 2-9: New USB device found, idVendor=174c, idProduct=3074, bcdDevice= 0.01
+[四 12月 18 14:49:35 2025] usb 2-9: New USB device strings: Mfr=2, Product=3, SerialNumber=0
+[四 12月 18 14:49:35 2025] usb 2-9: Product: ASM107x
+[四 12月 18 14:49:35 2025] usb 2-9: Manufacturer: ASUS TEK.
+[四 12月 18 14:49:35 2025] hub 2-9:1.0: USB hub found
+[四 12月 18 14:49:35 2025] hub 2-9:1.0: 4 ports detected
+[四 12月 18 14:49:35 2025] usb 1-6: new low-speed USB device number 3 using xhci_hcd
+[四 12月 18 14:49:35 2025] usb 1-6: New USB device found, idVendor=413c, idProduct=2113, bcdDevice=33.09
+[四 12月 18 14:49:35 2025] usb 1-6: New USB device strings: Mfr=0, Product=2, SerialNumber=0
+[四 12月 18 14:49:35 2025] usb 1-6: Product: Dell KB216 Wired Keyboard
+[四 12月 18 14:49:36 2025] usb 1-10: new high-speed USB device number 4 using xhci_hcd
+[四 12月 18 14:49:36 2025] usb 1-10: New USB device found, idVendor=174c, idProduct=2074, bcdDevice= 0.01
+[四 12月 18 14:49:36 2025] usb 1-10: New USB device strings: Mfr=2, Product=3, SerialNumber=0
+[四 12月 18 14:49:36 2025] usb 1-10: Product: ASM107x
+[四 12月 18 14:49:36 2025] usb 1-10: Manufacturer: ASUS TEK.
+[四 12月 18 14:49:36 2025] hub 1-10:1.0: USB hub found
+[四 12月 18 14:49:36 2025] hub 1-10:1.0: 4 ports detected
+[四 12月 18 14:49:36 2025] hid: raw HID events driver (C) Jiri Kosina
+[四 12月 18 14:49:36 2025] usbcore: registered new interface driver usbhid
+[四 12月 18 14:49:36 2025] usbhid: USB HID core driver
+[四 12月 18 14:49:36 2025] hid-generic 0003:0B05:19AF.0001: hiddev0,hidraw0: USB HID v1.11 Device [AsusTek Computer Inc. AURA LED Controller] on usb-0000:00:14.0-2/input2
+[四 12月 18 14:49:36 2025] input: Dell KB216 Wired Keyboard as /devices/pci0000:00/0000:00:14.0/usb1/1-6/1-6:1.0/0003:413C:2113.0002/input/input3
+[四 12月 18 14:49:36 2025] hid-generic 0003:413C:2113.0002: input,hidraw1: USB HID v1.11 Keyboard [Dell KB216 Wired Keyboard] on usb-0000:00:14.0-6/input0
+[四 12月 18 14:49:36 2025] input: Dell KB216 Wired Keyboard System Control as /devices/pci0000:00/0000:00:14.0/usb1/1-6/1-6:1.1/0003:413C:2113.0003/input/input4
+[四 12月 18 14:49:36 2025] input: Dell KB216 Wired Keyboard Consumer Control as /devices/pci0000:00/0000:00:14.0/usb1/1-6/1-6:1.1/0003:413C:2113.0003/input/input5
+[四 12月 18 14:49:36 2025] hid-generic 0003:413C:2113.0003: input,hiddev1,hidraw2: USB HID v1.11 Device [Dell KB216 Wired Keyboard] on usb-0000:00:14.0-6/input1
+[四 12月 18 14:49:36 2025] libcrc32c: loading out-of-tree module taints kernel.
+[四 12月 18 14:49:36 2025] libcrc32c: module verification failed: signature and/or required key missing - tainting kernel
+[四 12月 18 14:49:36 2025] BPF: [113357] Invalid name_offset:2022692
+[四 12月 18 14:49:36 2025] failed to validate module [libcrc32c] BTF: -22
+[四 12月 18 14:49:36 2025] BPF: [113357] Invalid name_offset:2022692
+[四 12月 18 14:49:36 2025] failed to validate module [libcrc32c] BTF: -22
+[四 12月 18 14:49:36 2025] BPF: [113357] Invalid name_offset:2022692
+[四 12月 18 14:49:36 2025] failed to validate module [libcrc32c] BTF: -22
+[四 12月 18 14:49:36 2025] BPF: [113357] Invalid name_offset:2022692
+[四 12月 18 14:49:36 2025] failed to validate module [libcrc32c] BTF: -22
+[四 12月 18 14:49:36 2025] usb 1-10.1: new low-speed USB device number 5 using xhci_hcd
+[四 12月 18 14:49:36 2025] fbcon: Taking over console
+[四 12月 18 14:49:36 2025] Console: switching to colour frame buffer device 160x45
+[四 12月 18 14:49:36 2025] EXT4-fs (nvme1n1p2): mounted filesystem with ordered data mode. Quota mode: none.
+[四 12月 18 14:49:36 2025] usb 1-10.1: New USB device found, idVendor=046d, idProduct=c31c, bcdDevice=49.20
+[四 12月 18 14:49:36 2025] usb 1-10.1: New USB device strings: Mfr=1, Product=2, SerialNumber=0
+[四 12月 18 14:49:36 2025] usb 1-10.1: Product: USB Keyboard
+[四 12月 18 14:49:36 2025] usb 1-10.1: Manufacturer: Logitech
+[四 12月 18 14:49:36 2025] input: Logitech USB Keyboard as /devices/pci0000:00/0000:00:14.0/usb1/1-10/1-10.1/1-10.1:1.0/0003:046D:C31C.0004/input/input6
+[四 12月 18 14:49:36 2025] hid-generic 0003:046D:C31C.0004: input,hidraw3: USB HID v1.10 Keyboard [Logitech USB Keyboard] on usb-0000:00:14.0-10.1/input0
+[四 12月 18 14:49:36 2025] input: Logitech USB Keyboard Consumer Control as /devices/pci0000:00/0000:00:14.0/usb1/1-10/1-10.1/1-10.1:1.1/0003:046D:C31C.0005/input/input7
+[四 12月 18 14:49:36 2025] systemd[1]: Inserted module 'autofs4'
+[四 12月 18 14:49:36 2025] input: Logitech USB Keyboard System Control as /devices/pci0000:00/0000:00:14.0/usb1/1-10/1-10.1/1-10.1:1.1/0003:046D:C31C.0005/input/input8
+[四 12月 18 14:49:36 2025] hid-generic 0003:046D:C31C.0005: input,hidraw4: USB HID v1.10 Device [Logitech USB Keyboard] on usb-0000:00:14.0-10.1/input1
+[四 12月 18 14:49:36 2025] systemd[1]: systemd 249.11-0ubuntu3.17 running in system mode (+PAM +AUDIT +SELINUX +APPARMOR +IMA +SMACK +SECCOMP +GCRYPT +GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 -IDN +IPTC +KMOD +LIBCRYPTSETUP +LIBFDISK +PCRE2 -PWQUALITY -P11KIT -QRENCODE +BZIP2 +LZ4 +XZ +ZLIB +ZSTD -XKBCOMMON +UTMP +SYSVINIT default-hierarchy=unified)
+[四 12月 18 14:49:36 2025] systemd[1]: Detected architecture x86-64.
+[四 12月 18 14:49:36 2025] systemd[1]: Hostname set to <zns2>.
+[四 12月 18 14:49:36 2025] random: lvmconfig: uninitialized urandom read (4 bytes read)
+[四 12月 18 14:49:36 2025] systemd[1]: Configuration file /run/systemd/system/netplan-ovs-cleanup.service is marked world-inaccessible. This has no effect as configuration data is accessible via APIs without restrictions. Proceeding anyway.
+[四 12月 18 14:49:36 2025] systemd[1]: /lib/systemd/system/snapd.service:23: Unknown key name 'RestartMode' in section 'Service', ignoring.
+[四 12月 18 14:49:36 2025] systemd[1]: Queued start job for default target Graphical Interface.
+[四 12月 18 14:49:36 2025] systemd[1]: Created slice Virtual Machine and Container Slice.
+[四 12月 18 14:49:36 2025] systemd[1]: Created slice Slice /system/modprobe.
+[四 12月 18 14:49:36 2025] systemd[1]: Created slice Slice /system/systemd-fsck.
+[四 12月 18 14:49:36 2025] systemd[1]: Created slice User and Session Slice.
+[四 12月 18 14:49:36 2025] systemd[1]: Started Forward Password Requests to Wall Directory Watch.
+[四 12月 18 14:49:36 2025] systemd[1]: Set up automount Arbitrary Executable File Formats File System Automount Point.
+[四 12月 18 14:49:36 2025] systemd[1]: Reached target User and Group Name Lookups.
+[四 12月 18 14:49:36 2025] systemd[1]: Reached target Remote File Systems.
+[四 12月 18 14:49:36 2025] systemd[1]: Reached target Slice Units.
+[四 12月 18 14:49:36 2025] systemd[1]: Reached target Mounting snaps.
+[四 12月 18 14:49:36 2025] systemd[1]: Reached target Local Verity Protected Volumes.
+[四 12月 18 14:49:36 2025] systemd[1]: Reached target Libvirt guests shutdown.
+[四 12月 18 14:49:36 2025] systemd[1]: Listening on Device-mapper event daemon FIFOs.
+[四 12月 18 14:49:36 2025] systemd[1]: Listening on LVM2 poll daemon socket.
+[四 12月 18 14:49:36 2025] systemd[1]: Listening on Syslog Socket.
+[四 12月 18 14:49:36 2025] systemd[1]: Listening on fsck to fsckd communication Socket.
+[四 12月 18 14:49:36 2025] systemd[1]: Listening on initctl Compatibility Named Pipe.
+[四 12月 18 14:49:36 2025] systemd[1]: Listening on Journal Audit Socket.
+[四 12月 18 14:49:36 2025] systemd[1]: Listening on Journal Socket (/dev/log).
+[四 12月 18 14:49:36 2025] systemd[1]: Listening on Journal Socket.
+[四 12月 18 14:49:36 2025] systemd[1]: Listening on udev Control Socket.
+[四 12月 18 14:49:36 2025] systemd[1]: Listening on udev Kernel Socket.
+[四 12月 18 14:49:36 2025] systemd[1]: Mounting Huge Pages File System...
+[四 12月 18 14:49:36 2025] systemd[1]: Mounting POSIX Message Queue File System...
+[四 12月 18 14:49:36 2025] systemd[1]: Mounting Kernel Debug File System...
+[四 12月 18 14:49:36 2025] systemd[1]: Mounting Kernel Trace File System...
+[四 12月 18 14:49:36 2025] systemd[1]: Starting Journal Service...
+[四 12月 18 14:49:36 2025] systemd[1]: Finished Availability of block devices.
+[四 12月 18 14:49:36 2025] systemd[1]: Starting Set the console keyboard layout...
+[四 12月 18 14:49:36 2025] systemd[1]: Starting Create List of Static Device Nodes...
+[四 12月 18 14:49:36 2025] systemd[1]: Starting Monitoring of LVM2 mirrors, snapshots etc. using dmeventd or progress polling...
+[四 12月 18 14:49:36 2025] systemd[1]: Starting Load Kernel Module configfs...
+[四 12月 18 14:49:36 2025] systemd[1]: Starting Load Kernel Module drm...
+[四 12月 18 14:49:36 2025] systemd[1]: Starting Load Kernel Module efi_pstore...
+[四 12月 18 14:49:36 2025] systemd[1]: Starting Load Kernel Module fuse...
+[四 12月 18 14:49:36 2025] systemd[1]: Condition check resulted in File System Check on Root Device being skipped.
+[四 12月 18 14:49:36 2025] random: lvm: uninitialized urandom read (4 bytes read)
+[四 12月 18 14:49:36 2025] systemd[1]: Starting Load Kernel Modules...
+[四 12月 18 14:49:36 2025] systemd[1]: Starting Remount Root and Kernel File Systems...
+[四 12月 18 14:49:36 2025] systemd[1]: Starting Coldplug All udev Devices...
+[四 12月 18 14:49:36 2025] systemd[1]: Mounted Huge Pages File System.
+[四 12月 18 14:49:36 2025] systemd[1]: Mounted POSIX Message Queue File System.
+[四 12月 18 14:49:36 2025] systemd[1]: Mounted Kernel Debug File System.
+[四 12月 18 14:49:36 2025] systemd[1]: Mounted Kernel Trace File System.
+[四 12月 18 14:49:36 2025] systemd[1]: Finished Create List of Static Device Nodes.
+[四 12月 18 14:49:36 2025] systemd[1]: modprobe@configfs.service: Deactivated successfully.
+[四 12月 18 14:49:36 2025] systemd[1]: Finished Load Kernel Module configfs.
+[四 12月 18 14:49:36 2025] systemd[1]: modprobe@drm.service: Deactivated successfully.
+[四 12月 18 14:49:36 2025] systemd[1]: Finished Load Kernel Module drm.
+[四 12月 18 14:49:36 2025] systemd[1]: modprobe@fuse.service: Deactivated successfully.
+[四 12月 18 14:49:36 2025] systemd[1]: Finished Load Kernel Module fuse.
+[四 12月 18 14:49:36 2025] systemd[1]: Mounting FUSE Control File System...
+[四 12月 18 14:49:36 2025] systemd[1]: Mounting Kernel Configuration File System...
+[四 12月 18 14:49:36 2025] EXT4-fs (nvme1n1p2): re-mounted. Quota mode: none.
+[四 12月 18 14:49:36 2025] systemd[1]: Finished Remount Root and Kernel File Systems.
+[四 12月 18 14:49:36 2025] systemd[1]: Mounted FUSE Control File System.
+[四 12月 18 14:49:36 2025] systemd[1]: Mounted Kernel Configuration File System.
+[四 12月 18 14:49:36 2025] systemd[1]: Activating swap /swapfile...
+[四 12月 18 14:49:36 2025] systemd[1]: Starting Load/Save Random Seed...
+[四 12月 18 14:49:36 2025] systemd[1]: Starting Create System Users...
+[四 12月 18 14:49:36 2025] Adding 2097148k swap on /swapfile.  Priority:-2 extents:17 across:974266368k SSFS
+[四 12月 18 14:49:36 2025] systemd[1]: Activated swap /swapfile.
+[四 12月 18 14:49:36 2025] systemd[1]: Reached target Swaps.
+[四 12月 18 14:49:36 2025] lp: driver loaded but no devices found
+[四 12月 18 14:49:36 2025] pstore: Using crash dump compression: deflate
+[四 12月 18 14:49:36 2025] pstore: Registered efi as persistent store backend
+[四 12月 18 14:49:36 2025] systemd[1]: modprobe@efi_pstore.service: Deactivated successfully.
+[四 12月 18 14:49:36 2025] systemd[1]: Finished Load Kernel Module efi_pstore.
+[四 12月 18 14:49:36 2025] systemd[1]: Condition check resulted in Platform Persistent Storage Archival being skipped.
+[四 12月 18 14:49:36 2025] ppdev: user-space parallel port driver
+[四 12月 18 14:49:36 2025] systemd[1]: Finished Create System Users.
+[四 12月 18 14:49:36 2025] systemd[1]: Starting Create Static Device Nodes in /dev...
+[四 12月 18 14:49:36 2025] systemd[1]: Finished Create Static Device Nodes in /dev.
+[四 12月 18 14:49:36 2025] systemd[1]: Starting Rule-based Manager for Device Events and Files...
+[四 12月 18 14:49:36 2025] systemd[1]: Finished Set the console keyboard layout.
+[四 12月 18 14:49:36 2025] systemd[1]: Started Journal Service.
+[四 12月 18 14:49:36 2025] systemd-journald[510]: Received client request to flush runtime journal.
+[四 12月 18 14:49:36 2025] nct6775: Found NCT6798D or compatible chip at 0x2e:0x290
+[四 12月 18 14:49:36 2025] VFIO - User Level meta-driver version: 0.3
+[四 12月 18 14:49:36 2025] loop0: detected capacity change from 0 to 8
+[四 12月 18 14:49:36 2025] loop1: detected capacity change from 0 to 151368
+[四 12月 18 14:49:36 2025] loop2: detected capacity change from 0 to 151456
+[四 12月 18 14:49:36 2025] loop3: detected capacity change from 0 to 513184
+[四 12月 18 14:49:36 2025] loop4: detected capacity change from 0 to 512824
+[四 12月 18 14:49:36 2025] loop5: detected capacity change from 0 to 1056784
+[四 12月 18 14:49:36 2025] loop6: detected capacity change from 0 to 1057184
+[四 12月 18 14:49:36 2025] loop7: detected capacity change from 0 to 187776
+[四 12月 18 14:49:36 2025] loop8: detected capacity change from 0 to 26472
+[四 12月 18 14:49:36 2025] loop9: detected capacity change from 0 to 24984
+[四 12月 18 14:49:36 2025] loop10: detected capacity change from 0 to 103976
+[四 12月 18 14:49:36 2025] loop11: detected capacity change from 0 to 104296
+[四 12月 18 14:49:36 2025] loop12: detected capacity change from 0 to 1000
+[四 12月 18 14:49:36 2025] loop13: detected capacity change from 0 to 1152
+[四 12月 18 14:49:37 2025] intel_pmc_core INT33A1:00:  initialized
+[四 12月 18 14:49:37 2025] pcieport 0000:00:01.0: AER: Corrected error received: 0000:01:00.0
+[四 12月 18 14:49:37 2025] nvme 0000:01:00.0: PCIe Bus Error: severity=Corrected, type=Data Link Layer, (Receiver ID)
+[四 12月 18 14:49:37 2025] nvme 0000:01:00.0:   device [144d:a80d] error status/mask=00000040/0000e000
+[四 12月 18 14:49:37 2025] nvme 0000:01:00.0:    [ 6] BadTLP                
+[四 12月 18 14:49:37 2025] asus_wmi: ASUS WMI generic driver loaded
+[四 12月 18 14:49:37 2025] asus_wmi: Initialization: 0x0
+[四 12月 18 14:49:37 2025] asus_wmi: BIOS WMI version: 0.0
+[四 12月 18 14:49:37 2025] asus_wmi: SFUN value: 0x0
+[四 12月 18 14:49:37 2025] eeepc-wmi eeepc-wmi: Detected AsusMbSwInterface, not ASUSWMI, use DSTS
+[四 12月 18 14:49:37 2025] RAPL PMU: API unit is 2^-32 Joules, 2 fixed counters, 655360 ms ovfl timer
+[四 12月 18 14:49:37 2025] RAPL PMU: hw unit of domain pp0-core 2^-14 Joules
+[四 12月 18 14:49:37 2025] RAPL PMU: hw unit of domain package 2^-14 Joules
+[四 12月 18 14:49:37 2025] input: Eee PC WMI hotkeys as /devices/platform/eeepc-wmi/input/input9
+[四 12月 18 14:49:37 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:37 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:37 2025] pcieport 0000:00:01.0: AER: Corrected error received: 0000:01:00.0
+[四 12月 18 14:49:37 2025] nvme 0000:01:00.0: PCIe Bus Error: severity=Corrected, type=Data Link Layer, (Receiver ID)
+[四 12月 18 14:49:37 2025] nvme 0000:01:00.0:   device [144d:a80d] error status/mask=00000040/0000e000
+[四 12月 18 14:49:37 2025] nvme 0000:01:00.0:    [ 6] BadTLP                
+[四 12月 18 14:49:37 2025] pcieport 0000:00:01.0: AER: Corrected error received: 0000:01:00.0
+[四 12月 18 14:49:37 2025] nvme 0000:01:00.0: PCIe Bus Error: severity=Corrected, type=Data Link Layer, (Receiver ID)
+[四 12月 18 14:49:37 2025] nvme 0000:01:00.0:   device [144d:a80d] error status/mask=00000040/0000e000
+[四 12月 18 14:49:37 2025] nvme 0000:01:00.0:    [ 6] BadTLP                
+[四 12月 18 14:49:37 2025] EXT4-fs (nvme0n1): mounted filesystem with ordered data mode. Quota mode: none.
+[四 12月 18 14:49:37 2025] random: [pango] FcInit: uninitialized urandom read (8 bytes read)
+[四 12月 18 14:49:37 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:37 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:37 2025] audit: type=1400 audit(1766040577.592:2): apparmor="STATUS" operation="profile_load" profile="unconfined" name="libreoffice-senddoc" pid=743 comm="apparmor_parser"
+[四 12月 18 14:49:37 2025] audit: type=1400 audit(1766040577.592:3): apparmor="STATUS" operation="profile_load" profile="unconfined" name="libreoffice-xpdfimport" pid=745 comm="apparmor_parser"
+[四 12月 18 14:49:37 2025] audit: type=1400 audit(1766040577.592:4): apparmor="STATUS" operation="profile_load" profile="unconfined" name="swtpm" pid=740 comm="apparmor_parser"
+[四 12月 18 14:49:37 2025] audit: type=1400 audit(1766040577.592:5): apparmor="STATUS" operation="profile_load" profile="unconfined" name="lsb_release" pid=733 comm="apparmor_parser"
+[四 12月 18 14:49:37 2025] audit: type=1400 audit(1766040577.592:6): apparmor="STATUS" operation="profile_load" profile="unconfined" name="nvidia_modprobe" pid=734 comm="apparmor_parser"
+[四 12月 18 14:49:37 2025] audit: type=1400 audit(1766040577.592:7): apparmor="STATUS" operation="profile_load" profile="unconfined" name="nvidia_modprobe//kmod" pid=734 comm="apparmor_parser"
+[四 12月 18 14:49:37 2025] audit: type=1400 audit(1766040577.592:8): apparmor="STATUS" operation="profile_load" profile="unconfined" name="libreoffice-oosplash" pid=742 comm="apparmor_parser"
+[四 12月 18 14:49:37 2025] audit: type=1400 audit(1766040577.593:9): apparmor="STATUS" operation="profile_load" profile="unconfined" name="/usr/bin/man" pid=739 comm="apparmor_parser"
+[四 12月 18 14:49:37 2025] audit: type=1400 audit(1766040577.593:10): apparmor="STATUS" operation="profile_load" profile="unconfined" name="man_filter" pid=739 comm="apparmor_parser"
+[四 12月 18 14:49:37 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:37 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:37 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:37 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:37 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:37 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:37 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:37 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:37 2025] snd_hda_intel 0000:00:1f.3: enabling device (0000 -> 0002)
+[四 12月 18 14:49:37 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:37 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:37 2025] snd_hda_intel 0000:00:1f.3: number of I/O streams is 16, forcing separate stream tags
+[四 12月 18 14:49:37 2025] i915 0000:00:02.0: [drm] VT-d active for gfx access
+[四 12月 18 14:49:37 2025] Console: switching to colour dummy device 80x25
+[四 12月 18 14:49:37 2025] intel_tcc_cooling: Programmable TCC Offset detected
+[四 12月 18 14:49:37 2025] intel_rapl_msr: PL4 support detected.
+[四 12月 18 14:49:37 2025] intel_rapl_common: Found RAPL domain package
+[四 12月 18 14:49:37 2025] intel_rapl_common: Found RAPL domain core
+[四 12月 18 14:49:37 2025] intel_rapl_common: Found RAPL domain uncore
+[四 12月 18 14:49:37 2025] i915 0000:00:02.0: vgaarb: deactivate vga console
+[四 12月 18 14:49:37 2025] i915 0000:00:02.0: [drm] Transparent Hugepage mode 'huge=within_size'
+[四 12月 18 14:49:37 2025] i915 0000:00:02.0: vgaarb: changed VGA decodes: olddecodes=io+mem,decodes=io+mem:owns=io+mem
+[四 12月 18 14:49:37 2025] i915 0000:00:02.0: [drm] Finished loading DMC firmware i915/adls_dmc_ver2_01.bin (v2.1)
+[四 12月 18 14:49:37 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:37 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:37 2025] snd_hda_codec_realtek hdaudioC0D0: autoconfig for ALC897: line_outs=3 (0x14/0x15/0x16/0x0/0x0) type:line
+[四 12月 18 14:49:37 2025] snd_hda_codec_realtek hdaudioC0D0:    speaker_outs=0 (0x0/0x0/0x0/0x0/0x0)
+[四 12月 18 14:49:37 2025] snd_hda_codec_realtek hdaudioC0D0:    hp_outs=1 (0x1b/0x0/0x0/0x0/0x0)
+[四 12月 18 14:49:37 2025] snd_hda_codec_realtek hdaudioC0D0:    mono: mono_out=0x0
+[四 12月 18 14:49:37 2025] snd_hda_codec_realtek hdaudioC0D0:    dig-out=0x1e/0x0
+[四 12月 18 14:49:37 2025] snd_hda_codec_realtek hdaudioC0D0:    inputs:
+[四 12月 18 14:49:37 2025] snd_hda_codec_realtek hdaudioC0D0:      Front Mic=0x19
+[四 12月 18 14:49:37 2025] snd_hda_codec_realtek hdaudioC0D0:      Rear Mic=0x18
+[四 12月 18 14:49:37 2025] snd_hda_codec_realtek hdaudioC0D0:      Line=0x1a
+[四 12月 18 14:49:37 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:37 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:37 2025] snd_hda_codec_hdmi hdaudioC0D2: No i915 binding for Intel HDMI/DP codec
+[四 12月 18 14:49:37 2025] hdaudio hdaudioC0D2: Unable to configure, disabling
+[四 12月 18 14:49:37 2025] input: HDA Intel Front Mic as /devices/pci0000:00/0000:00:1f.3/sound/card0/input10
+[四 12月 18 14:49:37 2025] input: HDA Intel Rear Mic as /devices/pci0000:00/0000:00:1f.3/sound/card0/input11
+[四 12月 18 14:49:37 2025] input: HDA Intel Line as /devices/pci0000:00/0000:00:1f.3/sound/card0/input12
+[四 12月 18 14:49:37 2025] input: HDA Intel Line Out Front as /devices/pci0000:00/0000:00:1f.3/sound/card0/input13
+[四 12月 18 14:49:37 2025] input: HDA Intel Line Out Surround as /devices/pci0000:00/0000:00:1f.3/sound/card0/input14
+[四 12月 18 14:49:37 2025] input: HDA Intel Line Out CLFE as /devices/pci0000:00/0000:00:1f.3/sound/card0/input15
+[四 12月 18 14:49:37 2025] input: HDA Intel Front Headphone as /devices/pci0000:00/0000:00:1f.3/sound/card0/input16
+[四 12月 18 14:49:37 2025] RTL8226B_RTL8221B 2.5Gbps PHY r8169-0-500:00: attached PHY driver (mii_bus:phy_addr=r8169-0-500:00, irq=MAC)
+[四 12月 18 14:49:37 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:37 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:37 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:37 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:37 2025] i915 0000:00:02.0: [drm] GuC firmware i915/tgl_guc_62.0.0.bin version 62.0 submission:disabled
+[四 12月 18 14:49:37 2025] i915 0000:00:02.0: [drm] GuC SLPC: disabled
+[四 12月 18 14:49:37 2025] i915 0000:00:02.0: [drm] HuC firmware i915/tgl_huc_7.9.3.bin version 7.9 authenticated:yes
+[四 12月 18 14:49:37 2025] i915 0000:00:02.0: [drm] Protected Xe Path (PXP) protected content support initialized
+[四 12月 18 14:49:37 2025] [drm] Initialized i915 1.6.0 20201103 for 0000:00:02.0 on minor 1
+[四 12月 18 14:49:37 2025] ACPI: video: Video Device [GFX0] (multi-head: yes  rom: no  post: no)
+[四 12月 18 14:49:37 2025] input: Video Bus as /devices/LNXSYSTM:00/LNXSYBUS:00/PNP0A08:00/LNXVIDEO:00/input/input17
+[四 12月 18 14:49:37 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:37 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:37 2025] fbcon: i915drmfb (fb0) is primary device
+[四 12月 18 14:49:37 2025] Console: switching to colour frame buffer device 160x45
+[四 12月 18 14:49:37 2025] i915 0000:00:02.0: [drm] fb0: i915drmfb frame buffer device
+[四 12月 18 14:49:37 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:37 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:37 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:37 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:37 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:37 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:37 2025] r8169 0000:05:00.0 eno1: Link is Down
+[四 12月 18 14:49:37 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:37 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:37 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:37 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:37 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:37 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:37 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:37 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:37 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:37 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:37 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:37 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:37 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:37 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:37 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:37 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:37 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:37 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:37 2025] random: crng init done
+[四 12月 18 14:49:37 2025] random: 7 urandom warning(s) missed due to ratelimiting
+[四 12月 18 14:49:38 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:38 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:38 2025] loop14: detected capacity change from 0 to 8
+[四 12月 18 14:49:38 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:38 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:38 2025] bridge: filtering via arp/ip/ip6tables is no longer available by default. Update your scripts to load br_netfilter if you need this.
+[四 12月 18 14:49:38 2025] BPF: [113357] Invalid name_offset:2022692
+[四 12月 18 14:49:38 2025] failed to validate module [libcrc32c] BTF: -22
+[四 12月 18 14:49:38 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:38 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:38 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:38 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:38 2025] BPF: [113357] Invalid name_offset:2022692
+[四 12月 18 14:49:38 2025] failed to validate module [libcrc32c] BTF: -22
+[四 12月 18 14:49:38 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:38 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:38 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:38 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:38 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:38 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:38 2025] r8169 0000:05:00.0: invalid VPD tag 0x00 (size 0) at offset 0; assume missing optional EEPROM
+[四 12月 18 14:49:38 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:38 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:38 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:38 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:38 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:38 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:38 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:38 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:38 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:38 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:38 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:38 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:38 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:38 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:38 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:38 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:38 2025] BPF: [113200] Invalid kind:19
+[四 12月 18 14:49:38 2025] failed to validate module [cryptd] BTF: -22
+[四 12月 18 14:49:38 2025] rfkill: input handler disabled
+[四 12月 18 14:49:40 2025] pcieport 0000:00:01.0: AER: Corrected error received: 0000:00:01.0
+[四 12月 18 14:49:40 2025] pcieport 0000:00:01.0: PCIe Bus Error: severity=Corrected, type=Data Link Layer, (Transmitter ID)
+[四 12月 18 14:49:40 2025] pcieport 0000:00:01.0:   device [8086:460d] error status/mask=00001000/00002000
+[四 12月 18 14:49:40 2025] pcieport 0000:00:01.0:    [12] Timeout               
+[四 12月 18 14:49:40 2025] pcieport 0000:00:01.0: AER: Corrected error received: 0000:01:00.0
+[四 12月 18 14:49:40 2025] nvme 0000:01:00.0: PCIe Bus Error: severity=Corrected, type=Data Link Layer, (Transmitter ID)
+[四 12月 18 14:49:40 2025] nvme 0000:01:00.0:   device [144d:a80d] error status/mask=00001000/0000e000
+[四 12月 18 14:49:40 2025] nvme 0000:01:00.0:    [12] Timeout               
+[四 12月 18 14:49:40 2025] pcieport 0000:00:01.0: AER: Corrected error received: 0000:01:00.0
+[四 12月 18 14:49:40 2025] nvme 0000:01:00.0: PCIe Bus Error: severity=Corrected, type=Data Link Layer, (Transmitter ID)
+[四 12月 18 14:49:40 2025] nvme 0000:01:00.0:   device [144d:a80d] error status/mask=00001000/0000e000
+[四 12月 18 14:49:40 2025] nvme 0000:01:00.0:    [12] Timeout               
+[四 12月 18 14:49:40 2025] pcieport 0000:00:01.0: AER: Corrected error received: 0000:00:01.0
+[四 12月 18 14:49:40 2025] pcieport 0000:00:01.0: PCIe Bus Error: severity=Corrected, type=Data Link Layer, (Transmitter ID)
+[四 12月 18 14:49:40 2025] pcieport 0000:00:01.0:   device [8086:460d] error status/mask=00001000/00002000
+[四 12月 18 14:49:40 2025] pcieport 0000:00:01.0:    [12] Timeout               
+[四 12月 18 14:49:40 2025] r8169 0000:05:00.0 eno1: Link is Up - 1Gbps/Full - flow control rx/tx
+[四 12月 18 14:49:40 2025] IPv6: ADDRCONF(NETDEV_CHANGE): eno1: link becomes ready
+[四 12月 18 14:49:40 2025] pcieport 0000:00:01.0: AER: Corrected error received: 0000:01:00.0
+[四 12月 18 14:49:40 2025] nvme 0000:01:00.0: PCIe Bus Error: severity=Corrected, type=Data Link Layer, (Receiver ID)
+[四 12月 18 14:49:40 2025] nvme 0000:01:00.0:   device [144d:a80d] error status/mask=00000080/0000e000
+[四 12月 18 14:49:40 2025] nvme 0000:01:00.0:    [ 7] BadDLLP               
+[四 12月 18 14:49:40 2025] pcieport 0000:00:01.0: AER: Corrected error received: 0000:01:00.0
+[四 12月 18 14:49:40 2025] nvme 0000:01:00.0: PCIe Bus Error: severity=Corrected, type=Data Link Layer, (Transmitter ID)
+[四 12月 18 14:49:40 2025] nvme 0000:01:00.0:   device [144d:a80d] error status/mask=00001000/0000e000
+[四 12月 18 14:49:40 2025] nvme 0000:01:00.0:    [12] Timeout               
+[四 12月 18 14:49:40 2025] kauditd_printk_skb: 55 callbacks suppressed
+[四 12月 18 14:49:40 2025] audit: type=1400 audit(1766040581.106:66): apparmor="DENIED" operation="capable" profile="/usr/sbin/cups-browsed" pid=1713 comm="cups-browsed" capability=23  capname="sys_nice"
+[四 12月 18 14:49:40 2025] capability: warning: `zerotier-one' uses 32-bit capabilities (legacy support in use)
+[四 12月 18 14:49:40 2025] pcieport 0000:00:01.0: AER: Corrected error received: 0000:01:00.0
+[四 12月 18 14:49:40 2025] nvme 0000:01:00.0: PCIe Bus Error: severity=Corrected, type=Data Link Layer, (Receiver ID)
+[四 12月 18 14:49:40 2025] nvme 0000:01:00.0:   device [144d:a80d] error status/mask=00000080/0000e000
+[四 12月 18 14:49:40 2025] nvme 0000:01:00.0:    [ 7] BadDLLP               
+[四 12月 18 14:49:40 2025] pcieport 0000:00:01.0: AER: Corrected error received: 0000:01:00.0
+[四 12月 18 14:49:40 2025] nvme 0000:01:00.0: PCIe Bus Error: severity=Corrected, type=Data Link Layer, (Receiver ID)
+[四 12月 18 14:49:40 2025] nvme 0000:01:00.0:   device [144d:a80d] error status/mask=00000080/0000e000
+[四 12月 18 14:49:40 2025] nvme 0000:01:00.0:    [ 7] BadDLLP               
+[四 12月 18 14:49:40 2025] pcieport 0000:00:01.0: AER: Corrected error received: 0000:01:00.0
+[四 12月 18 14:49:40 2025] nvme 0000:01:00.0: PCIe Bus Error: severity=Corrected, type=Data Link Layer, (Transmitter ID)
+[四 12月 18 14:49:40 2025] nvme 0000:01:00.0:   device [144d:a80d] error status/mask=00001000/0000e000
+[四 12月 18 14:49:40 2025] nvme 0000:01:00.0:    [12] Timeout               
+[四 12月 18 14:49:40 2025] pcieport 0000:00:01.0: AER: Corrected error received: 0000:01:00.0
+[四 12月 18 14:49:40 2025] nvme 0000:01:00.0: PCIe Bus Error: severity=Corrected, type=Data Link Layer, (Receiver ID)
+[四 12月 18 14:49:40 2025] nvme 0000:01:00.0:   device [144d:a80d] error status/mask=00000040/0000e000
+[四 12月 18 14:49:40 2025] nvme 0000:01:00.0:    [ 6] BadTLP                
+[四 12月 18 14:49:40 2025] pcieport 0000:00:01.0: AER: Corrected error received: 0000:00:01.0
+[四 12月 18 14:49:40 2025] pcieport 0000:00:01.0: PCIe Bus Error: severity=Corrected, type=Data Link Layer, (Transmitter ID)
+[四 12月 18 14:49:40 2025] pcieport 0000:00:01.0:   device [8086:460d] error status/mask=00001000/00002000
+[四 12月 18 14:49:40 2025] pcieport 0000:00:01.0:    [12] Timeout               
+[四 12月 18 14:49:40 2025] pcieport 0000:00:01.0: AER: Corrected error received: 0000:01:00.0
+[四 12月 18 14:49:40 2025] nvme 0000:01:00.0: PCIe Bus Error: severity=Corrected, type=Data Link Layer, (Receiver ID)
+[四 12月 18 14:49:40 2025] nvme 0000:01:00.0:   device [144d:a80d] error status/mask=00000040/0000e000
+[四 12月 18 14:49:40 2025] nvme 0000:01:00.0:    [ 6] BadTLP                
+[四 12月 18 14:49:40 2025] pcieport 0000:00:01.0: AER: Corrected error received: 0000:01:00.0
+[四 12月 18 14:49:40 2025] nvme 0000:01:00.0: PCIe Bus Error: severity=Corrected, type=Data Link Layer, (Receiver ID)
+[四 12月 18 14:49:40 2025] nvme 0000:01:00.0:   device [144d:a80d] error status/mask=00000040/0000e000
+[四 12月 18 14:49:40 2025] nvme 0000:01:00.0:    [ 6] BadTLP                
+[四 12月 18 15:24:14 2025] BPF: 	 type_id=1455 bits_offset=96
+[四 12月 18 15:24:14 2025] BPF:  
+[四 12月 18 15:24:14 2025] BPF: Invalid name
+[四 12月 18 15:24:14 2025] BPF: 
+[四 12月 18 15:24:14 2025] failed to validate module [f2fs] BTF: -22
+[四 12月 18 15:24:25 2025] blkdev_report_zones: bdev=ffff966e429d1f40, sector=0, nr_zones=8191, cb=ffffffffbc873150, data=ffffafc382d7fd68
+[四 12月 18 15:24:25 2025]   disk=ffff966e42ca5c00, disk_name=nvme3n2, capacity=1677721600
+[四 12月 18 15:24:25 2025]   Calling disk->fops->report_zones (ffffffffc04ac070)
+[四 12月 18 15:24:25 2025]   [ret] disk->fops->report_zones returned 400
+[四 12月 18 15:24:25 2025] blkdev_report_zones: bdev=ffff966e429d1f40, sector=0, nr_zones=8191, cb=ffffffffbc873150, data=ffffafc382d7fd50
+[四 12月 18 15:24:25 2025]   disk=ffff966e42ca5c00, disk_name=nvme3n2, capacity=1677721600
+[四 12月 18 15:24:25 2025]   Calling disk->fops->report_zones (ffffffffc04ac070)
+[四 12月 18 15:24:25 2025]   [ret] disk->fops->report_zones returned 400
+[四 12月 18 15:24:27 2025] blkdev_report_zones: bdev=ffff966e429d1f40, sector=0, nr_zones=1, cb=ffffffffbc873150, data=ffffafc382d7fd28
+[四 12月 18 15:24:27 2025]   disk=ffff966e42ca5c00, disk_name=nvme3n2, capacity=1677721600
+[四 12月 18 15:24:27 2025]   Calling disk->fops->report_zones (ffffffffc04ac070)
+[四 12月 18 15:24:27 2025]   [ret] disk->fops->report_zones returned 1
+[四 12月 18 15:24:32 2025] module init
+[四 12月 18 15:24:32 2025] (f2fs_mount 5039)
+[四 12月 18 15:24:32 2025] [f2fs_scan_devices]: max_devices = 1. by tt
+[四 12月 18 15:24:32 2025] [f2fs_scan_devices]: Single zoned block device mount. device0: total_segments=0 ---ttt111g
+[四 12月 18 15:24:32 2025] [f2fs_scan_devices]: Single zoned block device mount. device0: total_segments=0 ---ttt222g
+[四 12月 18 15:24:32 2025] blkdev_report_zones: bdev=ffff966e429d1f40, sector=0, nr_zones=4294967295, cb=ffffffffc1006bb0, data=ffffafc382d37c78
+[四 12月 18 15:24:32 2025]   disk=ffff966e42ca5c00, disk_name=nvme3n2, capacity=1677721600
+[四 12月 18 15:24:32 2025]   Calling disk->fops->report_zones (ffffffffc04ac070)
+[四 12月 18 15:24:32 2025]   [ret] disk->fops->report_zones returned 400
+[四 12月 18 15:24:32 2025] F2FS-fs (nvme3n2): IO Block Size:        4 KB
+[四 12月 18 15:24:32 2025] F2FS-fs (nvme3n2): Right CP boundary, start(1048576) end(2097152) blocks(1024) blocks needed(1048576)
+[四 12月 18 15:24:32 2025] F2FS-fs (nvme3n2): Right SIT boundary, start(2097152) end(3145728) blocks(15360), blocks needed(1048576)
+[四 12月 18 15:24:32 2025] F2FS-fs (nvme3n2): Right NAT boundary, start(3145728) end(4194304) blocks(46080), blocks_needed(1048576)
+[四 12月 18 15:24:32 2025] F2FS-fs (nvme3n2): Right SSA boundary, start(4194304) end(6291456) blocks(923648), blocks needed(2097152)
+[四 12月 18 15:24:32 2025] (f2fs_start_merge_thread : 2570) start merge thread
+[四 12月 18 15:24:32 2025] (f2fs_start_merge_thread : 2579) start merge thread success
+[四 12月 18 15:24:33 2025] F2FS-ZONE: blks_per_seg=512, log_blocks_per_seg=9, blocks_per_blkz=524288
+[四 12月 18 15:24:33 2025] F2FS-fs (nvme3n2): Found nat_bits in checkpoint
+[四 12月 18 15:24:33 2025] blkdev_report_zones: bdev=ffff966e429d1f40, sector=88080384, nr_zones=1, cb=ffffffffc1031d10, data=ffffafc382d379c8
+[四 12月 18 15:24:33 2025]   disk=ffff966e42ca5c00, disk_name=nvme3n2, capacity=1677721600
+[四 12月 18 15:24:33 2025]   Calling disk->fops->report_zones (ffffffffc04ac070)
+[四 12月 18 15:24:33 2025]   [ret] disk->fops->report_zones returned 1
+[四 12月 18 15:24:33 2025] blkdev_report_zones: bdev=ffff966e429d1f40, sector=92274688, nr_zones=1, cb=ffffffffc1031d10, data=ffffafc382d379c8
+[四 12月 18 15:24:33 2025]   disk=ffff966e42ca5c00, disk_name=nvme3n2, capacity=1677721600
+[四 12月 18 15:24:33 2025]   Calling disk->fops->report_zones (ffffffffc04ac070)
+[四 12月 18 15:24:33 2025]   [ret] disk->fops->report_zones returned 1
+[四 12月 18 15:24:33 2025] blkdev_report_zones: bdev=ffff966e429d1f40, sector=96468992, nr_zones=1, cb=ffffffffc1031d10, data=ffffafc382d379c8
+[四 12月 18 15:24:33 2025]   disk=ffff966e42ca5c00, disk_name=nvme3n2, capacity=1677721600
+[四 12月 18 15:24:33 2025]   Calling disk->fops->report_zones (ffffffffc04ac070)
+[四 12月 18 15:24:33 2025]   [ret] disk->fops->report_zones returned 1
+[四 12月 18 15:24:33 2025] blkdev_report_zones: bdev=ffff966e429d1f40, sector=75497472, nr_zones=1, cb=ffffffffc1031d10, data=ffffafc382d379c8
+[四 12月 18 15:24:33 2025]   disk=ffff966e42ca5c00, disk_name=nvme3n2, capacity=1677721600
+[四 12月 18 15:24:33 2025]   Calling disk->fops->report_zones (ffffffffc04ac070)
+[四 12月 18 15:24:33 2025]   [ret] disk->fops->report_zones returned 1
+[四 12月 18 15:24:33 2025] blkdev_report_zones: bdev=ffff966e429d1f40, sector=79691776, nr_zones=1, cb=ffffffffc1031d10, data=ffffafc382d379c8
+[四 12月 18 15:24:33 2025]   disk=ffff966e42ca5c00, disk_name=nvme3n2, capacity=1677721600
+[四 12月 18 15:24:33 2025]   Calling disk->fops->report_zones (ffffffffc04ac070)
+[四 12月 18 15:24:33 2025]   [ret] disk->fops->report_zones returned 1
+[四 12月 18 15:24:33 2025] blkdev_report_zones: bdev=ffff966e429d1f40, sector=83886080, nr_zones=1, cb=ffffffffc1031d10, data=ffffafc382d379c8
+[四 12月 18 15:24:33 2025]   disk=ffff966e42ca5c00, disk_name=nvme3n2, capacity=1677721600
+[四 12月 18 15:24:33 2025]   Calling disk->fops->report_zones (ffffffffc04ac070)
+[四 12月 18 15:24:33 2025]   [ret] disk->fops->report_zones returned 1
+[四 12月 18 15:24:33 2025] [f2fs_check_write_pointer]: FDEV(i).nr_blkz: 400, FDEV(i).total_segments: 0, ttt555
+[四 12月 18 15:24:33 2025] blkdev_report_zones: bdev=ffff966e429d1f40, sector=0, nr_zones=4294967295, cb=ffffffffc1036560, data=ffffafc382d37b90
+[四 12月 18 15:24:33 2025]   disk=ffff966e42ca5c00, disk_name=nvme3n2, capacity=1677721600
+[四 12月 18 15:24:33 2025]   Calling disk->fops->report_zones (ffffffffc04ac070)
+[四 12月 18 15:24:33 2025]   [ret] disk->fops->report_zones returned 400
+[四 12月 18 15:24:33 2025] F2FS-fs (nvme3n2): Mounted with checkpoint version = 4b6f213f
+[四 12月 18 15:31:49 2025] EXT4-fs (nvme2n1): mounted filesystem with ordered data mode. Quota mode: none.
+[四 12月 18 16:18:08 2025] (kill_f2fs_super:5045)
+[四 12月 18 16:18:08 2025] (f2fs_put_super:1870)
+[四 12月 18 16:18:08 2025] (f2fs_stop_merge_thread : 2585) stop merge thread
+[四 12月 18 16:18:26 2025] exit
+[四 12月 18 16:18:26 2025] module init
+[四 12月 18 16:19:24 2025] exit
+[四 12月 18 16:19:24 2025] module init
+[四 12月 18 16:20:00 2025] exit
+[四 12月 18 16:20:00 2025] module init
+[四 12月 18 16:20:44 2025] exit
+[四 12月 18 16:20:44 2025] module init
+[四 12月 18 16:20:55 2025] blkdev_report_zones: bdev=ffff966ead72b840, sector=0, nr_zones=8191, cb=ffffffffbc873150, data=ffffafc382057d58
+[四 12月 18 16:20:55 2025]   disk=ffff966eae4f7400, disk_name=nvme3n4, capacity=419430400
+[四 12月 18 16:20:55 2025]   Calling disk->fops->report_zones (ffffffffc04ac070)
+[四 12月 18 16:20:55 2025]   [ret] disk->fops->report_zones returned 100
+[四 12月 18 16:20:55 2025] blkdev_report_zones: bdev=ffff966ead72b840, sector=0, nr_zones=8191, cb=ffffffffbc873150, data=ffffafc382057dd8
+[四 12月 18 16:20:55 2025]   disk=ffff966eae4f7400, disk_name=nvme3n4, capacity=419430400
+[四 12月 18 16:20:55 2025]   Calling disk->fops->report_zones (ffffffffc04ac070)
+[四 12月 18 16:20:55 2025]   [ret] disk->fops->report_zones returned 100
+[四 12月 18 16:20:57 2025] blkdev_report_zones: bdev=ffff966ead72b840, sector=0, nr_zones=1, cb=ffffffffbc873150, data=ffffafc382057d58
+[四 12月 18 16:20:57 2025]   disk=ffff966eae4f7400, disk_name=nvme3n4, capacity=419430400
+[四 12月 18 16:20:57 2025]   Calling disk->fops->report_zones (ffffffffc04ac070)
+[四 12月 18 16:20:57 2025]   [ret] disk->fops->report_zones returned 1
+[四 12月 18 16:24:25 2025] exit
+[四 12月 18 16:24:25 2025] module init
+[四 12月 18 16:24:36 2025] blkdev_report_zones: bdev=ffff966ead72b840, sector=0, nr_zones=8191, cb=ffffffffbc873150, data=ffffafc382d37da8
+[四 12月 18 16:24:36 2025]   disk=ffff966eae4f7400, disk_name=nvme3n4, capacity=419430400
+[四 12月 18 16:24:36 2025]   Calling disk->fops->report_zones (ffffffffc04ac070)
+[四 12月 18 16:24:36 2025]   [ret] disk->fops->report_zones returned 100
+[四 12月 18 16:24:36 2025] blkdev_report_zones: bdev=ffff966ead72b840, sector=0, nr_zones=8191, cb=ffffffffbc873150, data=ffffafc382d37d68
+[四 12月 18 16:24:36 2025]   disk=ffff966eae4f7400, disk_name=nvme3n4, capacity=419430400
+[四 12月 18 16:24:36 2025]   Calling disk->fops->report_zones (ffffffffc04ac070)
+[四 12月 18 16:24:36 2025]   [ret] disk->fops->report_zones returned 100
+[四 12月 18 16:24:38 2025] blkdev_report_zones: bdev=ffff966ead72b840, sector=0, nr_zones=1, cb=ffffffffbc873150, data=ffffafc382d37da0
+[四 12月 18 16:24:38 2025]   disk=ffff966eae4f7400, disk_name=nvme3n4, capacity=419430400
+[四 12月 18 16:24:38 2025]   Calling disk->fops->report_zones (ffffffffc04ac070)
+[四 12月 18 16:24:38 2025]   [ret] disk->fops->report_zones returned 1
+[四 12月 18 16:25:59 2025] (f2fs_mount 5039)
+[四 12月 18 16:25:59 2025] [f2fs_scan_devices]: max_devices = 1. by tt
+[四 12月 18 16:25:59 2025] [f2fs_scan_devices]: Single zoned block device mount. device0: total_segments=0 ---ttt111g
+[四 12月 18 16:25:59 2025] [f2fs_scan_devices]: Single zoned block device mount. device0: total_segments=0 ---ttt222g
+[四 12月 18 16:25:59 2025] blkdev_report_zones: bdev=ffff966ead72b840, sector=0, nr_zones=4294967295, cb=ffffffffc1006bb0, data=ffffafc382eabc78
+[四 12月 18 16:25:59 2025]   disk=ffff966eae4f7400, disk_name=nvme3n4, capacity=419430400
+[四 12月 18 16:25:59 2025]   Calling disk->fops->report_zones (ffffffffc04ac070)
+[四 12月 18 16:25:59 2025]   [ret] disk->fops->report_zones returned 100
+[四 12月 18 16:25:59 2025] F2FS-fs (nvme3n4): IO Block Size:        4 KB
+[四 12月 18 16:25:59 2025] F2FS-fs (nvme3n4): Right CP boundary, start(1048576) end(2097152) blocks(1024) blocks needed(1048576)
+[四 12月 18 16:25:59 2025] F2FS-fs (nvme3n4): Right SIT boundary, start(2097152) end(3145728) blocks(4096), blocks needed(1048576)
+[四 12月 18 16:25:59 2025] F2FS-fs (nvme3n4): Right NAT boundary, start(3145728) end(4194304) blocks(57344), blocks_needed(1048576)
+[四 12月 18 16:25:59 2025] F2FS-fs (nvme3n4): Right SSA boundary, start(4194304) end(6291456) blocks(923648), blocks needed(2097152)
+[四 12月 18 16:25:59 2025] (f2fs_start_merge_thread : 2570) start merge thread
+[四 12月 18 16:25:59 2025] (f2fs_start_merge_thread : 2579) start merge thread success
+[四 12月 18 16:25:59 2025] F2FS-ZONE: blks_per_seg=512, log_blocks_per_seg=9, blocks_per_blkz=524288
+[四 12月 18 16:25:59 2025] F2FS-fs (nvme3n4): Found nat_bits in checkpoint
+[四 12月 18 16:25:59 2025] blkdev_report_zones: bdev=ffff966ead72b840, sector=88080384, nr_zones=1, cb=ffffffffc1031d60, data=ffffafc382eab9c8
+[四 12月 18 16:25:59 2025]   disk=ffff966eae4f7400, disk_name=nvme3n4, capacity=419430400
+[四 12月 18 16:25:59 2025]   Calling disk->fops->report_zones (ffffffffc04ac070)
+[四 12月 18 16:25:59 2025]   [ret] disk->fops->report_zones returned 1
+[四 12月 18 16:25:59 2025] blkdev_report_zones: bdev=ffff966ead72b840, sector=92274688, nr_zones=1, cb=ffffffffc1031d60, data=ffffafc382eab9c8
+[四 12月 18 16:25:59 2025]   disk=ffff966eae4f7400, disk_name=nvme3n4, capacity=419430400
+[四 12月 18 16:25:59 2025]   Calling disk->fops->report_zones (ffffffffc04ac070)
+[四 12月 18 16:25:59 2025]   [ret] disk->fops->report_zones returned 1
+[四 12月 18 16:25:59 2025] blkdev_report_zones: bdev=ffff966ead72b840, sector=96468992, nr_zones=1, cb=ffffffffc1031d60, data=ffffafc382eab9c8
+[四 12月 18 16:25:59 2025]   disk=ffff966eae4f7400, disk_name=nvme3n4, capacity=419430400
+[四 12月 18 16:25:59 2025]   Calling disk->fops->report_zones (ffffffffc04ac070)
+[四 12月 18 16:25:59 2025]   [ret] disk->fops->report_zones returned 1
+[四 12月 18 16:25:59 2025] blkdev_report_zones: bdev=ffff966ead72b840, sector=75497472, nr_zones=1, cb=ffffffffc1031d60, data=ffffafc382eab9c8
+[四 12月 18 16:25:59 2025]   disk=ffff966eae4f7400, disk_name=nvme3n4, capacity=419430400
+[四 12月 18 16:25:59 2025]   Calling disk->fops->report_zones (ffffffffc04ac070)
+[四 12月 18 16:25:59 2025]   [ret] disk->fops->report_zones returned 1
+[四 12月 18 16:25:59 2025] blkdev_report_zones: bdev=ffff966ead72b840, sector=79691776, nr_zones=1, cb=ffffffffc1031d60, data=ffffafc382eab9c8
+[四 12月 18 16:25:59 2025]   disk=ffff966eae4f7400, disk_name=nvme3n4, capacity=419430400
+[四 12月 18 16:25:59 2025]   Calling disk->fops->report_zones (ffffffffc04ac070)
+[四 12月 18 16:25:59 2025]   [ret] disk->fops->report_zones returned 1
+[四 12月 18 16:25:59 2025] blkdev_report_zones: bdev=ffff966ead72b840, sector=83886080, nr_zones=1, cb=ffffffffc1031d60, data=ffffafc382eab9c8
+[四 12月 18 16:25:59 2025]   disk=ffff966eae4f7400, disk_name=nvme3n4, capacity=419430400
+[四 12月 18 16:25:59 2025]   Calling disk->fops->report_zones (ffffffffc04ac070)
+[四 12月 18 16:25:59 2025]   [ret] disk->fops->report_zones returned 1
+[四 12月 18 16:25:59 2025] [f2fs_check_write_pointer]: FDEV(i).nr_blkz: 100, FDEV(i).total_segments: 0, ttt555
+[四 12月 18 16:25:59 2025] blkdev_report_zones: bdev=ffff966ead72b840, sector=0, nr_zones=4294967295, cb=ffffffffc10365b0, data=ffffafc382eabb90
+[四 12月 18 16:25:59 2025]   disk=ffff966eae4f7400, disk_name=nvme3n4, capacity=419430400
+[四 12月 18 16:25:59 2025]   Calling disk->fops->report_zones (ffffffffc04ac070)
+[四 12月 18 16:25:59 2025]   [ret] disk->fops->report_zones returned 100
+[四 12月 18 16:25:59 2025] F2FS-fs (nvme3n4): Mounted with checkpoint version = 18bc89c7
+[四 12月 18 16:33:50 2025] BUG: unable to handle page fault for address: 0000000000029d00
+[四 12月 18 16:33:50 2025] #PF: supervisor read access in kernel mode
+[四 12月 18 16:33:50 2025] #PF: error_code(0x0000) - not-present page
+[四 12月 18 16:33:50 2025] PGD 141840067 P4D 141840067 PUD 14183f067 PMD 0 
+[四 12月 18 16:33:50 2025] Oops: 0000 [#1] PREEMPT SMP NOPTI
+[四 12月 18 16:33:50 2025] CPU: 14 PID: 6386 Comm: node Tainted: G           OE     5.17.4 #1
+[四 12月 18 16:33:50 2025] Hardware name: ASUS System Product Name/TUF GAMING B760M-PLUS D4, BIOS 1641 02/21/2024
+[四 12月 18 16:33:50 2025] RIP: 0010:__mod_lruvec_page_state+0x61/0xe0
+[四 12月 18 16:33:50 2025] Code: ff 48 8b 43 08 a8 01 48 8d 50 ff 48 0f 45 da 48 8b 53 38 48 89 d0 48 83 e0 fc 83 e2 02 74 04 48 8b 40 10 48 85 c0 74 45 66 90 <49> 63 96 00 9d 02 00 48 8b bc d0 f8 0f 00 00 4c 3b b7 88 00 00 00
+[四 12月 18 16:33:50 2025] RSP: 0018:ffffafc382d3fce0 EFLAGS: 00010086
+[四 12月 18 16:33:50 2025] RAX: ffff966ec0d7a000 RBX: ffff9678279c25c0 RCX: 0000000000000000
+[四 12月 18 16:33:50 2025] RDX: 0000000000000002 RSI: 0000000000000025 RDI: ffff9678279c25c0
+[四 12月 18 16:33:50 2025] RBP: ffffafc382d3fd00 R08: 0000000000000000 R09: 0000000000000000
+[四 12月 18 16:33:50 2025] R10: 0000000000000000 R11: 0000000000000000 R12: 0000000000000004
+[四 12月 18 16:33:50 2025] R13: 0000000000000025 R14: 0000000000000000 R15: ffffafc382d3fe58
+[四 12月 18 16:33:50 2025] FS:  000070724e553880(0000) GS:ffff967d7f580000(0000) knlGS:0000000000000000
+[四 12月 18 16:33:50 2025] CS:  0010 DS: 0000 ES: 0000 CR0: 0000000080050033
+[四 12月 18 16:33:50 2025] CR2: 0000000000029d00 CR3: 000000010152c005 CR4: 0000000000770ee0
+[四 12月 18 16:33:50 2025] PKRU: 55555554
+[四 12月 18 16:33:50 2025] Call Trace:
+[四 12月 18 16:33:50 2025]  <TASK>
+[四 12月 18 16:33:50 2025]  account_kernel_stack.isra.0+0x48/0xa0
+[四 12月 18 16:33:50 2025]  copy_process+0x3a0/0x1cf0
+[四 12月 18 16:33:50 2025]  kernel_clone+0x9d/0x400
+[四 12月 18 16:33:50 2025]  __do_sys_clone+0x5d/0x90
+[四 12月 18 16:33:50 2025]  __x64_sys_clone+0x25/0x40
+[四 12月 18 16:33:50 2025]  do_syscall_64+0x59/0x90
+[四 12月 18 16:33:50 2025]  ? irqentry_exit_to_user_mode+0x9/0x30
+[四 12月 18 16:33:50 2025]  ? irqentry_exit+0x3d/0x50
+[四 12月 18 16:33:50 2025]  ? exc_page_fault+0x94/0x1b0
+[四 12月 18 16:33:50 2025]  ? asm_exc_page_fault+0x8/0x30
+[四 12月 18 16:33:50 2025]  entry_SYSCALL_64_after_hwframe+0x44/0xae
+[四 12月 18 16:33:50 2025] RIP: 0033:0x70724e642b57
+[四 12月 18 16:33:50 2025] Code: ba 04 00 f3 0f 1e fa 64 48 8b 04 25 10 00 00 00 45 31 c0 31 d2 31 f6 bf 11 00 20 01 4c 8d 90 d0 02 00 00 b8 38 00 00 00 0f 05 <48> 3d 00 f0 ff ff 77 41 41 89 c0 85 c0 75 2c 64 48 8b 04 25 10 00
+[四 12月 18 16:33:50 2025] RSP: 002b:00007ffe0af08158 EFLAGS: 00000246 ORIG_RAX: 0000000000000038
+[四 12月 18 16:33:50 2025] RAX: ffffffffffffffda RBX: 000070724eb10040 RCX: 000070724e642b57
+[四 12月 18 16:33:50 2025] RDX: 0000000000000000 RSI: 0000000000000000 RDI: 0000000001200011
+[四 12月 18 16:33:50 2025] RBP: 0000000000000001 R08: 0000000000000000 R09: 0000000000000000
+[四 12月 18 16:33:50 2025] R10: 000070724e553b50 R11: 0000000000000246 R12: 0000000000000000
+[四 12月 18 16:33:50 2025] R13: 00007ffe0af08180 R14: 00007ffe0af08580 R15: 0000000006a0b550
+[四 12月 18 16:33:50 2025]  </TASK>
+[四 12月 18 16:33:50 2025] Modules linked in: f2fs(OE) crc32_generic lz4hc_compress lz4_compress zstd_compress nvme_fabrics nfnetlink bridge stp llc snd_hda_codec_hdmi snd_hda_codec_realtek snd_hda_codec_generic intel_rapl_msr intel_rapl_common ledtrig_audio intel_tcc_cooling snd_hda_intel x86_pkg_temp_thermal snd_intel_dspcfg intel_powerclamp crct10dif_pclmul i915 snd_intel_sdw_acpi snd_hda_codec kvm_intel snd_hda_core snd_hwdep kvm snd_pcm binfmt_misc snd_seq_midi snd_seq_midi_event snd_rawmidi pmt_telemetry nls_iso8859_1 snd_seq pmt_class snd_seq_device eeepc_wmi input_leds joydev snd_timer rapl asus_wmi snd intel_cstate platform_profile sparse_keymap wmi_bmof mei_me mei ttm soundcore intel_vsec acpi_tad intel_pmc_core mac_hid acpi_pad sch_fq_codel vfio_pci vfio_pci_core vfio_virqfd irqbypass vfio_iommu_type1 vfio nct6775 hwmon_vid coretemp msr parport_pc ppdev lp parport efi_pstore ip_tables x_tables autofs4 raid10 raid1 raid0 hid_generic usbhid hid r8169 crc32_pclmul nvme nvme_core ahci xhci_pci
+[四 12月 18 16:33:50 2025]  realtek libahci vmd xhci_pci_renesas wmi video [last unloaded: f2fs]
+[四 12月 18 16:33:50 2025] CR2: 0000000000029d00
+[四 12月 18 16:33:50 2025] ---[ end trace 0000000000000000 ]---
+[四 12月 18 16:33:53 2025] RIP: 0010:__mod_lruvec_page_state+0x61/0xe0
+[四 12月 18 16:33:53 2025] Code: ff 48 8b 43 08 a8 01 48 8d 50 ff 48 0f 45 da 48 8b 53 38 48 89 d0 48 83 e0 fc 83 e2 02 74 04 48 8b 40 10 48 85 c0 74 45 66 90 <49> 63 96 00 9d 02 00 48 8b bc d0 f8 0f 00 00 4c 3b b7 88 00 00 00
+[四 12月 18 16:33:53 2025] RSP: 0018:ffffafc382d3fce0 EFLAGS: 00010086
+[四 12月 18 16:33:53 2025] RAX: ffff966ec0d7a000 RBX: ffff9678279c25c0 RCX: 0000000000000000
+[四 12月 18 16:33:53 2025] RDX: 0000000000000002 RSI: 0000000000000025 RDI: ffff9678279c25c0
+[四 12月 18 16:33:53 2025] RBP: ffffafc382d3fd00 R08: 0000000000000000 R09: 0000000000000000
+[四 12月 18 16:33:53 2025] R10: 0000000000000000 R11: 0000000000000000 R12: 0000000000000004
+[四 12月 18 16:33:53 2025] R13: 0000000000000025 R14: 0000000000000000 R15: ffffafc382d3fe58
+[四 12月 18 16:33:53 2025] FS:  000070724e553880(0000) GS:ffff967d7f580000(0000) knlGS:0000000000000000
+[四 12月 18 16:33:53 2025] CS:  0010 DS: 0000 ES: 0000 CR0: 0000000080050033
+[四 12月 18 16:33:53 2025] CR2: 0000000000029d00 CR3: 000000010152c005 CR4: 0000000000770ee0
+[四 12月 18 16:33:53 2025] PKRU: 55555554

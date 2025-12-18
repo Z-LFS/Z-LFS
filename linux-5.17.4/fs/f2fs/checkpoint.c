@@ -2850,7 +2850,7 @@ int reset_meta_zone_towrite(struct f2fs_sb_info *sbi,
 	block_t base;
 	char *bitmap;
 	unsigned int offset = 0;
-	int log = 0, ret, i;
+	int log = 0, ret;
 	
 	bdev = FDEV(0).bdev;
 	

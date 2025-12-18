@@ -2855,11 +2855,21 @@ got_it:
 static void reset_curseg(struct f2fs_sb_info *sbi, int type, int modified)
 {
 	struct curseg_info *curseg = CURSEG_I(sbi, type);
+	struct f2fs_sm_info *sm_i = SM_I(sbi);
 	struct summary_footer *sum_footer;
 	unsigned short seg_type = curseg->seg_type;
 
 	curseg->inited = true;
 	curseg->segno = curseg->next_segno;
+#if HOTNESS
+	if (GET_ZONE_FROM_SEG(sbi, curseg->segno) != curseg->zone && 
+			(type == CURSEG_COLD_DATA || type == CURSEG_WARM_DATA)) {
+		struct zone_fifo_entry *entry = kmalloc(sizeof(*entry), GFP_NOFS);
+		entry->zone_id = GET_ZONE_FROM_SEG(sbi, curseg->segno);
+		list_add_tail(&entry->list, &sm_i->zone_fifo_list);
+		kfree(entry);
+	}
+#endif
 	curseg->zone = GET_ZONE_FROM_SEG(sbi, curseg->segno);
 	curseg->next_blkoff = 0;
 	curseg->next_segno = NULL_SEGNO;
@@ -6301,6 +6311,7 @@ static int build_curseg(struct f2fs_sb_info *sbi)
 
 	for (i = 0; i < NO_CHECK_TYPE; i++) {
 		mutex_init(&array[i].curseg_mutex);
+
 		array[i].sum_blk = f2fs_kzalloc(sbi, PAGE_SIZE, GFP_KERNEL);
 		if (!array[i].sum_blk)
 			return -ENOMEM;
@@ -7220,6 +7231,10 @@ int f2fs_build_segment_manager(struct f2fs_sb_info *sbi)
 
 	/* init sm info */
 	sbi->sm_info = sm_info;
+#if HOTNESS
+		//init every curzone_fifo_list
+		INIT_LIST_HEAD(&sm_info->zone_fifo_list);
+#endif
 	sm_info->seg0_blkaddr = le32_to_cpu(raw_super->segment0_blkaddr);
 	sm_info->main_blkaddr = le32_to_cpu(raw_super->main_blkaddr);
 	sm_info->segment_count = le32_to_cpu(raw_super->segment_count);

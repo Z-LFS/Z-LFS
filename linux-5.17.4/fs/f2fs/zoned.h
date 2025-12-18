@@ -144,6 +144,7 @@
 #ifndef _LINUX_ZONED_H
 #define _LINUX_ZONED_H
 
+#define HOTNESS 1
 #define NPO2 0 //support NPO2 ZNS SSD
 
 #ifndef META_FOR_ZNS

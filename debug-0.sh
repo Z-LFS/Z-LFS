@@ -20,7 +20,8 @@ sudo insmod fs/f2fs/f2fs.ko
 cd ../f2fs-tools-1.15.0/
 make clean && ./autogen.sh && ./configure && make -j$(nproc)
 
-DEV=nvme3n2
+sudo umount /mnt/f2fs
+DEV=nvme3n4
 cd -
 sudo nvme zns reset-zone /dev/$DEV -a
 # sudo nvme zns reset-zone /dev/nvme3n6 -a
@@ -30,14 +31,16 @@ sleep 5
 echo "mq-deadline" | sudo tee /sys/block/$DEV/queue/scheduler
 # echo "mq-deadline" | sudo tee /sys/block/nvme3n6/queue/scheduler
 # echo "mq-deadline" | sudo tee /sys/block/nvme3n5/queue/scheduler
+
 sudo ../f2fs-tools-1.15.0/mkfs/mkfs.f2fs -d 1 -f -m /dev/$DEV
 # sudo ../f2fs-tools-1.15.0/mkfs/mkfs.f2fs -d 1 -f -m /dev/nvme3n6
 # sudo ../f2fs-tools-1.15.0/mkfs/mkfs.f2fs -d 1 -f -m /dev/nvme3n5
 
+
 # sudo mount /dev/$DEV /mnt/ZNS
-# sudo mount /dev/nvme3n2 /mnt/ZNS
+sudo mount /dev/nvme3n4 /mnt/f2fs
 # 挂载zlfs
-# sudo mount -t zlfs /dev/nvme3n2 /mnt/ZNS
+# sudo mount -t zlfs /dev/nvme3n4 /mnt/ZNS
 
 # sudo dmesg -T | tail -n 300 | sudo tee ~/Z-LFS/dmesgLog/dmesg.log0919-1
 # sudo dmesg -T | tail -n 300 > /home/zlfs/Z-LFS/dmesgLog/dmesg.log1118-1

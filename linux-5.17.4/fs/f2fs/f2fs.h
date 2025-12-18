@@ -1075,8 +1075,20 @@ struct flush_cmd_control {
 	struct llist_node *dispatch_list;	/* list for command dispatch */
 };
 
+#if HOTNESS
+struct zone_fifo_entry {
+    struct list_head list;
+    unsigned int zone_id;
+};
+#endif
+
 // segment management info
 struct f2fs_sm_info {
+#if HOTNESS
+	// every cur_zone has its own fifo list
+	struct list_head zone_fifo_list;
+#endif
+
 	struct sit_info *sit_info;		/* whole segment information */
 	struct free_segmap_info *free_info;	/* free segment information */
 	struct dirty_seglist_info *dirty_info;	/* dirty segment information */
