@@ -4337,6 +4337,14 @@ static ssize_t f2fs_file_read_iter(struct kiocb *iocb, struct iov_iter *to)
 	struct inode *inode = file_inode(iocb->ki_filp);
 	ssize_t ret;
 
+#if HOTNESS	
+	struct f2fs_sb_info *sbi = F2FS_I_SB(inode);
+	f2fs_info(sbi, "[[zlfs]]:before read access count:%d\n", atomic_read(&F2FS_I(inode)->i_access_count));
+	atomic_inc(&F2FS_I(inode)->i_access_count);
+	f2fs_info(sbi, "[[zlfs]]:after read access count:%d\n", atomic_read(&F2FS_I(inode)->i_access_count));
+
+#endif
+
 	if (!f2fs_is_compress_backend_ready(inode))
 		return -EOPNOTSUPP;
 

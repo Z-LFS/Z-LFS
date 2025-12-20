@@ -1,3 +1,5 @@
+sudo umount -l /mnt/f2fs
+
 cd ~/Z-LFS/linux-5.17.4
 
 # 修复属主，确保你这个用户能操作
@@ -23,6 +25,11 @@ make clean && ./autogen.sh && ./configure && make -j$(nproc)
 sudo umount /mnt/f2fs
 DEV=nvme3n4
 cd -
+sudo nvme zns reset-zone /dev/nvme3n1 -a
+sudo nvme zns reset-zone /dev/nvme3n2 -a
+sudo nvme zns reset-zone /dev/nvme3n3 -a
+sudo nvme zns reset-zone /dev/nvme3n5 -a
+
 sudo nvme zns reset-zone /dev/$DEV -a
 # sudo nvme zns reset-zone /dev/nvme3n6 -a
 sleep 5
@@ -38,7 +45,7 @@ sudo ../f2fs-tools-1.15.0/mkfs/mkfs.f2fs -d 1 -f -m /dev/$DEV
 
 
 # sudo mount /dev/$DEV /mnt/ZNS
-sudo mount /dev/nvme3n4 /mnt/f2fs
+sudo mount /dev/$DEV /mnt/f2fs
 # 挂载zlfs
 # sudo mount -t zlfs /dev/nvme3n4 /mnt/ZNS
 

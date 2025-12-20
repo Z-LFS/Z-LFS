@@ -103,7 +103,6 @@ static inline void sanity_check_seg_type(struct f2fs_sb_info *sbi,
 
 #define GET_SEGOFF_FROM_SEG0(sbi, blk_addr)	((blk_addr) - SEG0_BLKADDR(sbi))
 
-// 如果没有开启GRID_STRIPE，则和原版f2fs一样
 #if !GRID_STRIPE
 /*
 #define START_BLOCK(sbi, segno)	(SEG0_BLKADDR(sbi) +			\

@@ -1731,7 +1731,6 @@ static int f2fs_write_super_block(void)
   struct blk_zone *blkz;
   struct blk_zone_range range;
   __u64 sector;
-  __u64  nr_sectors;
   int ret;
 #endif
 

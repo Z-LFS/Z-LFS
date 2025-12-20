@@ -360,6 +360,10 @@ static int do_read_inode(struct inode *inode)
 	inode->i_size = le64_to_cpu(ri->i_size);
 	inode->i_blocks = SECTOR_FROM_BLOCK(le64_to_cpu(ri->i_blocks) - 1);
 
+#if HOTNESS
+	atomic_set(&fi->i_access_count, le64_to_cpu(ri->i_access_count));
+#endif
+
 	inode->i_atime.tv_sec = le64_to_cpu(ri->i_atime);
 	inode->i_ctime.tv_sec = le64_to_cpu(ri->i_ctime);
 	inode->i_mtime.tv_sec = le64_to_cpu(ri->i_mtime);
@@ -610,6 +614,10 @@ void f2fs_update_inode(struct inode *inode, struct page *node_page)
 	ri->i_links = cpu_to_le32(inode->i_nlink);
 	ri->i_size = cpu_to_le64(i_size_read(inode));
 	ri->i_blocks = cpu_to_le64(SECTOR_TO_BLOCK(inode->i_blocks) + 1);
+
+#if HOTNESS
+	ri->i_access_count = cpu_to_le64(atomic_read(&F2FS_I(inode)->i_access_count));
+#endif
 
 	if (et) {
 		read_lock(&et->lock);

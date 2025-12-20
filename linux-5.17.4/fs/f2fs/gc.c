@@ -718,35 +718,37 @@ retry:
 	ret = -ENODATA;
 	if (p.max_search == 0)
 		goto out;
-
+#if HOTNESS
 	if (__is_large_section(sbi) && p.alloc_mode == LFS) {
-		printk("[[f2fs_log]]sbi is large section && p.alloc_mode = LFS [by jx]\n");
+		f2fs_info(sbi,"[[f2fs_log]]sbi is large section && p.alloc_mode = LFS [by jx]\n");
 		if (!list_empty(&sm_info->zone_fifo_list)) {
-			auto entry = list_first_entry(&sm_info->zone_fifo_list, struct zone_fifo_entry, list);
-			auto secno_temp = entry->zone_id;
+			struct zone_fifo_entry *entry = list_first_entry(&sm_info->zone_fifo_list, struct zone_fifo_entry, list);
+			unsigned int secno_temp = entry->zone_id;
 			p.min_segno = GET_SEG_FROM_SEC(sbi, secno_temp); // sbi->segs_per_sec * secno
 			*result = p.min_segno;
-			printk("[[ZLFS_INFO]]del secno = %u\n", secno_temp);
+			f2fs_info(sbi,"[[ZLFS_INFO]]del secno = %u\n", secno_temp);
 			// 删除该 zone
 			list_del(&entry->list);
 			kfree(entry); // 如果 entry 是 kmalloc 分配的
 			goto got_result;
 		}
-		// if (sbi->next_victim_seg[BG_GC] != NULL_SEGNO) {
-		// 	p.min_segno = sbi->next_victim_seg[BG_GC];
-		// 	//gc next segno
-		// 	*result = p.min_segno;
-		// 	sbi->next_victim_seg[BG_GC] = NULL_SEGNO;
-		// 	goto got_result;
-		// }
-		// if (gc_type == FG_GC &&
-		// 		sbi->next_victim_seg[FG_GC] != NULL_SEGNO) {
-		// 	p.min_segno = sbi->next_victim_seg[FG_GC];
-		// 	*result = p.min_segno;
-		// 	sbi->next_victim_seg[FG_GC] = NULL_SEGNO;
-		// 	goto got_result;
-		// }
 	}
+#else
+		if (sbi->next_victim_seg[BG_GC] != NULL_SEGNO) {
+			p.min_segno = sbi->next_victim_seg[BG_GC];
+			//gc next segno
+			*result = p.min_segno;
+			sbi->next_victim_seg[BG_GC] = NULL_SEGNO;
+			goto got_result;
+		}
+		if (gc_type == FG_GC &&
+				sbi->next_victim_seg[FG_GC] != NULL_SEGNO) {
+			p.min_segno = sbi->next_victim_seg[FG_GC];
+			*result = p.min_segno;
+			sbi->next_victim_seg[FG_GC] = NULL_SEGNO;
+			goto got_result;
+		}
+#endif
 
 	last_victim = sm->last_victim[p.gc_mode];
 	if (p.alloc_mode == LFS && gc_type == FG_GC) {
@@ -1522,13 +1524,13 @@ out:
 //static int is_alive_err = 0;
 //static int cnt_grep = 0;
 
+#if HOTNESS
 /* adjust if all blocks in segment is invalid */
-bool all_blocks_invalid(struct inode *inode)
+bool all_blocks_invalid(struct f2fs_sb_info *sbi, struct inode *inode)
 {
-    struct f2fs_sb_info *sbi = F2FS_I_SB(inode);
     pgoff_t total_blocks = (i_size_read(inode) + PAGE_SIZE - 1) >> PAGE_SHIFT;
     pgoff_t index;
-    int ret = true;
+	f2fs_info(sbi,"[[ZLFS_INFO]] total_blocks = %lu\n", total_blocks);
 
     for (index = 0; index < total_blocks; index++) {
         struct dnode_of_data dn;
@@ -1536,7 +1538,6 @@ bool all_blocks_invalid(struct inode *inode)
         if (f2fs_get_dnode_of_data(&dn, index, LOOKUP_NODE) == 0) {
             block_t blkaddr = dn.data_blkaddr;
             if (blkaddr != NULL_ADDR) {
-                // 只要有一个块有效，返回false
                 f2fs_put_dnode(&dn);
                 return false;
             }
@@ -1545,6 +1546,7 @@ bool all_blocks_invalid(struct inode *inode)
     }
     return true;
 }
+#endif
 
 /*
  * This function tries to get parent node of victim data block, and identifies
@@ -1773,8 +1775,13 @@ next_step:
 
 			start_bidx = f2fs_start_bidx_of_node(nofs, inode)
 								+ ofs_in_node;
+#if HOTNESS
 			/* if file is hot,move data page */
-			if (1) {
+			if (atomic_read(&fi->i_access_count) > HOT_FILE_ACCESSED_THRESHOLD) {
+				f2fs_info(sbi,"[[zlfs]]:this hot file access count:%d\n",
+					 atomic_read(&fi->i_access_count));
+				atomic_set(&fi->i_access_count, 0);
+#endif
 				if (f2fs_post_read_required(inode))
 					err = move_data_block(inode, start_bidx,
 								gc_type, segno, off);
@@ -1785,18 +1792,24 @@ next_step:
 				if (!err && (gc_type == FG_GC ||
 						f2fs_post_read_required(inode)))
 					submitted++;
+#if HOTNESS
 			} else {
-			// Invalidate the data blocks of the cold file.
-				if (all_blocks_invalid(inode)) {
+				// Invalidate the data blocks of the cold file.
+				f2fs_info(sbi,"[[zlfs]]:this cold file access count:%d\n",
+						 atomic_read(&fi->i_access_count));
+				
+				if (inode->i_nlink > 0) {
 					struct dentry *dentry = d_find_alias(inode);
-					struct dentry *parent = dget_parent(dentry);
-					vfs_unlink(d_inode(parent), dentry, NULL);
-					dput(parent);
-					dput(dentry);
+					if (dentry) {
+						struct dentry *parent = dget_parent(dentry);
+						struct inode *dir = d_inode(parent);
+						vfs_unlink(sb->s_user_ns, dir, dentry, NULL);
+						dput(parent);
+						dput(dentry);
+					}
 				}
 			}
-			
-
+#endif			
 			if (locked) {
 				up_write(&fi->i_gc_rwsem[WRITE]);
 				up_write(&fi->i_gc_rwsem[READ]);

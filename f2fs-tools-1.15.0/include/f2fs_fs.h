@@ -925,7 +925,11 @@ static_assert(sizeof(struct f2fs_extent) == 12, "");
 
 /* 200 bytes for inline xattrs by default */
 #define DEFAULT_INLINE_XATTR_ADDRS	50
+#if HOTNESS
+#define DEF_ADDRS_PER_INODE	921	/* Address Pointers in an Inode */
+#else
 #define DEF_ADDRS_PER_INODE	923	/* Address Pointers in an Inode */
+#endif
 #define CUR_ADDRS_PER_INODE(inode)	(DEF_ADDRS_PER_INODE - \
 					__get_extra_isize(inode))
 #define ADDRS_PER_INODE(i)	addrs_per_inode(i)
@@ -1036,6 +1040,9 @@ struct f2fs_inode {
 	__le32 i_namelen;		/* file name length */
 	__u8 i_name[F2FS_NAME_LEN];	/* file name for SPOR */
 	__u8 i_dir_level;		/* dentry_level for large dir */
+#if HOTNESS
+    __le64 i_access_count; /* file access count */
+#endif
 
 	struct f2fs_extent i_ext __attribute__((packed));	/* caching a largest extent */
 

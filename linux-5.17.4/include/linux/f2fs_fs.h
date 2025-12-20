@@ -11,6 +11,7 @@
 #include <linux/pagemap.h>
 #include <linux/types.h>
 
+#define HOTNESS 1
 #define META_FOR_ZNS 1
 #define DELAYED_MERGE 1
 
@@ -245,7 +246,11 @@ struct f2fs_extent {
 #define F2FS_NAME_LEN		255
 /* 200 bytes for inline xattrs by default */
 #define DEFAULT_INLINE_XATTR_ADDRS	50
+#if HOTNESS
+#define DEF_ADDRS_PER_INODE	921	/* Address Pointers in an Inode */
+#else
 #define DEF_ADDRS_PER_INODE	923	/* Address Pointers in an Inode */
+#endif
 #define CUR_ADDRS_PER_INODE(inode)	(DEF_ADDRS_PER_INODE - \
 					get_extra_isize(inode))
 #define DEF_NIDS_PER_INODE	5	/* Node IDs in an Inode */
@@ -301,7 +306,9 @@ struct f2fs_inode {
 	__le32 i_namelen;		/* file name length */
 	__u8 i_name[F2FS_NAME_LEN];	/* file name for SPOR */
 	__u8 i_dir_level;		/* dentry_level for large dir */
-
+#if HOTNESS
+	__le64 i_access_count; 		/* file access frequency count */
+#endif
 	struct f2fs_extent i_ext;	/* caching a largest extent */
 
 	union {

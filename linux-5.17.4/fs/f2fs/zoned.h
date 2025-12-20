@@ -145,6 +145,7 @@
 #define _LINUX_ZONED_H
 
 #define HOTNESS 1
+#define HOT_FILE_ACCESSED_THRESHOLD 10
 #define NPO2 0 //support NPO2 ZNS SSD
 
 #ifndef META_FOR_ZNS
