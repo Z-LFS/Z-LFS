@@ -27,6 +27,7 @@
 #include <linux/part_stat.h>
 #include <linux/zstd.h>
 #include <linux/lz4.h>
+#include <linux/freezer.h>
 
 #include "f2fs.h"
 #include "node.h"
@@ -1891,6 +1892,9 @@ static void f2fs_put_super(struct super_block *sb)
 #endif
 #if ZF2FS_MONITOR
   f2fs_stop_monitor_thread(sbi);
+#endif
+#if HOTNESS
+	f2fs_stop_cold_file_thread(sbi);
 #endif
 
 	/*
@@ -4022,6 +4026,12 @@ static void init_sb_info(struct f2fs_sb_info *sbi)
 
 	init_rwsem(&sbi->sb_lock);
 	init_rwsem(&sbi->pin_sem);
+
+#if HOTNESS
+	INIT_LIST_HEAD(&sbi->cold_inode_list);
+	spin_lock_init(&sbi->cold_inode_lock);
+	init_waitqueue_head(&sbi->cold_inode_wait_queue);
+#endif
 }
 
 static int  init_percpu_info(struct f2fs_sb_info *sbi)
@@ -4463,6 +4473,106 @@ static int f2fs_check_meta_boundary(struct f2fs_sb_info *sbi)
 	return 0;
 }
 #endif
+#if HOTNESS
+static int f2fs_cold_file_thread_func(void *data)
+{
+	struct f2fs_sb_info *sbi = data;
+	struct cold_inode_entry *entry;
+
+	set_freezable();
+
+	while (!kthread_should_stop()) {
+		wait_event_interruptible(sbi->cold_inode_wait_queue,
+			!list_empty(&sbi->cold_inode_list) || kthread_should_stop());
+
+		if (kthread_should_stop())
+			break;
+
+		spin_lock(&sbi->cold_inode_lock);
+		if (list_empty(&sbi->cold_inode_list)) {
+			spin_unlock(&sbi->cold_inode_lock);
+			continue;
+		}
+		entry = list_first_entry(&sbi->cold_inode_list,
+					struct cold_inode_entry, list);
+		list_del(&entry->list);
+		spin_unlock(&sbi->cold_inode_lock);
+
+		f2fs_info(sbi, "Cold file thread: processing nid %u", entry->nid);
+		
+		/* TODO: Implement deletion logic in Step 2 */
+		{
+			struct inode *inode, *dir;
+			struct f2fs_dir_entry *de;
+			struct page *page;
+			nid_t pino;
+
+			inode = f2fs_iget(sbi->sb, entry->nid);
+			if (IS_ERR(inode)) {
+				f2fs_err(sbi, "Failed to get cold inode %u", entry->nid);
+				goto next_entry;
+			}
+
+			pino = F2FS_I(inode)->i_pino;
+			dir = f2fs_iget(sbi->sb, pino);
+			if (IS_ERR(dir)) {
+				f2fs_err(sbi, "Failed to get parent inode %u for cold inode %u",
+					pino, entry->nid);
+				iput(inode);
+				goto next_entry;
+			}
+
+			f2fs_lock_op(sbi);
+			down_write(&F2FS_I(dir)->i_sem);
+
+			de = f2fs_find_entry_by_ino(dir, entry->nid, &page);
+			if (de) {
+				f2fs_delete_entry(de, page, dir, inode);
+				f2fs_info(sbi, "Cold file deleted: nid %u", entry->nid);
+			} else {
+				f2fs_warn(sbi, "Cold file entry not found in parent: nid %u, pino %u",
+					entry->nid, pino);
+			}
+
+			up_write(&F2FS_I(dir)->i_sem);
+			f2fs_unlock_op(sbi);
+
+			iput(dir);
+			iput(inode);
+		}
+
+next_entry:
+		kfree(entry);
+	}
+	return 0;
+}
+
+int f2fs_start_cold_file_thread(struct f2fs_sb_info *sbi)
+{
+	struct task_struct *tsk;
+
+	if (sbi->cold_inode_task)
+		return 0;
+
+	tsk = kthread_run(f2fs_cold_file_thread_func, sbi,
+			"f2fs_cold_file");
+	if (IS_ERR(tsk)) {
+		f2fs_err(sbi, "Failed to start cold file thread");
+		return PTR_ERR(tsk);
+	}
+	sbi->cold_inode_task = tsk;
+	return 0;
+}
+
+void f2fs_stop_cold_file_thread(struct f2fs_sb_info *sbi)
+{
+	if (sbi->cold_inode_task) {
+		kthread_stop(sbi->cold_inode_task);
+		sbi->cold_inode_task = NULL;
+	}
+}
+#endif
+
 /**
  * super_block: 由 VFS 在 sget() 或 sget_fc() 里新建的。
  * data: 用户在挂载文件系统时指定的选项。
@@ -4933,6 +5043,14 @@ reset_checkpoint:
 			    err);
 			f2fs_stop_monitor_thread(sbi);
 		}
+#endif
+
+#if HOTNESS
+	err = f2fs_start_cold_file_thread(sbi);
+	if (err) {
+		f2fs_err(sbi, "Failed to start cold file thread (%d)", err);
+		f2fs_stop_cold_file_thread(sbi);
+	}
 #endif
 
 	return 0;

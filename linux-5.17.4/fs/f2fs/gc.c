@@ -1780,7 +1780,6 @@ next_step:
 			if (atomic_read(&fi->i_access_count) > HOT_FILE_ACCESSED_THRESHOLD) {
 				f2fs_info(sbi,"[[zlfs]]:this hot file access count:%d\n",
 					 atomic_read(&fi->i_access_count));
-				atomic_set(&fi->i_access_count, 0);
 #endif
 				if (f2fs_post_read_required(inode))
 					err = move_data_block(inode, start_bidx,
@@ -1794,18 +1793,20 @@ next_step:
 					submitted++;
 #if HOTNESS
 			} else {
-				// Invalidate the data blocks of the cold file.
+				/* Invalidate the data blocks of the cold file. */
 				f2fs_info(sbi,"[[zlfs]]:this cold file access count:%d\n",
-						 atomic_read(&fi->i_access_count));
+					 atomic_read(&fi->i_access_count));
 				
-				if (inode->i_nlink > 0) {
-					struct dentry *dentry = d_find_alias(inode);
-					if (dentry) {
-						struct dentry *parent = dget_parent(dentry);
-						struct inode *dir = d_inode(parent);
-						vfs_unlink(sb->s_user_ns, dir, dentry, NULL);
-						dput(parent);
-						dput(dentry);
+				if (!is_inode_flag_set(inode, FI_COLD_FILE_QUEUED)) {
+					struct cold_inode_entry *entry;
+					entry = kmalloc(sizeof(struct cold_inode_entry), GFP_NOFS);
+					if (entry) {
+						entry->nid = inode->i_ino;
+						spin_lock(&sbi->cold_inode_lock);
+						list_add_tail(&entry->list, &sbi->cold_inode_list);
+						spin_unlock(&sbi->cold_inode_lock);
+						set_inode_flag(inode, FI_COLD_FILE_QUEUED);
+						wake_up(&sbi->cold_inode_wait_queue);
 					}
 				}
 			}
