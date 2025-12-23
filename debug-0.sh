@@ -1,10 +1,6 @@
-sudo umount -l /mnt/f2fs
-
 cd ~/Z-LFS/linux-5.17.4
 
-# 修复属主，确保你这个用户能操作
-# sudo chown -R $(whoami):$(whoami) /home/zlfs/Z-LFS/f2fs-tools-1.15.0
-# sudo chown -R $(whoami):$(whoami) /home/zlfs/Z-LFS/linux-5.17.4
+sudo umount -l /mnt/f2fs
 
 make M=fs/f2fs clean
 
@@ -16,19 +12,18 @@ sudo modprobe lz4hc_compress
 
 sudo rmmod f2fs
 sudo insmod fs/f2fs/f2fs.ko
-# sudo rmmod zlfs
-# sudo insmod fs/f2fs/zlfs.ko
+
 
 cd ../f2fs-tools-1.15.0/
 make clean && ./autogen.sh && ./configure && make -j$(nproc)
 
 sudo umount /mnt/f2fs
-DEV=nvme3n4
+DEV=nvme0n4
 cd -
-sudo nvme zns reset-zone /dev/nvme3n1 -a
-sudo nvme zns reset-zone /dev/nvme3n2 -a
-sudo nvme zns reset-zone /dev/nvme3n3 -a
-sudo nvme zns reset-zone /dev/nvme3n5 -a
+sudo nvme zns reset-zone /dev/nvme0n1 -a
+sudo nvme zns reset-zone /dev/nvme0n2 -a
+sudo nvme zns reset-zone /dev/nvme0n3 -a
+sudo nvme zns reset-zone /dev/nvme0n5 -a
 
 sudo nvme zns reset-zone /dev/$DEV -a
 # sudo nvme zns reset-zone /dev/nvme3n6 -a

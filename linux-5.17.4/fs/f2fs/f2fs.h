@@ -1089,6 +1089,7 @@ struct f2fs_sm_info {
 #if HOTNESS
 	// every cur_zone has its own fifo list
 	struct list_head zone_fifo_list;
+	spinlock_t zone_fifo_lock;
 #endif
 
 	struct sit_info *sit_info;		/* whole segment information */
@@ -3533,6 +3534,7 @@ struct dentry *f2fs_get_parent(struct dentry *child);
  * dir.c
  */
 unsigned char f2fs_get_de_type(struct f2fs_dir_entry *de);
+int f2fs_get_name_by_ino(struct inode *dir, nid_t ino, char *name, size_t len);
 int f2fs_init_casefolded_name(const struct inode *dir,
 			      struct f2fs_filename *fname);
 int f2fs_setup_filename(struct inode *dir, const struct qstr *iname,

@@ -4468,6 +4468,79 @@ static int f2fs_check_meta_boundary(struct f2fs_sb_info *sbi)
  * data: 用户在挂载文件系统时指定的选项。
  * silent: 静默模式标志。如果为非零值，则禁止打印错误信息。
  */
+static void f2fs_cold_file_work_func(struct work_struct *work)
+{
+	struct f2fs_sb_info *sbi = container_of(work,
+			struct f2fs_sb_info, cold_file_work);
+	struct inode *inode;
+	struct inode *parent_inode;
+	struct dentry *dentry, *parent_dentry;
+	char name_buf[F2FS_NAME_LEN + 1];
+	int err;
+
+	while (1) {
+		spin_lock(&sbi->cold_file_lock);
+		if (list_empty(&sbi->cold_file_list)) {
+			spin_unlock(&sbi->cold_file_lock);
+			break;
+		}
+		inode = list_first_entry(&sbi->cold_file_list,
+				struct inode, i_cold_list);
+		list_del_init(&inode->i_cold_list);
+		spin_unlock(&sbi->cold_file_lock);
+
+		dentry = d_find_alias(inode);
+		if (dentry) {
+			parent_dentry = dget_parent(dentry);
+			parent_inode = d_inode(parent_dentry);
+			
+			inode_lock(parent_inode);
+			err = vfs_unlink(&init_user_ns, parent_inode, dentry, NULL);
+			inode_unlock(parent_inode);
+			
+			dput(parent_dentry);
+			dput(dentry);
+			iput(inode);
+		} else {
+			nid_t pino = F2FS_I(inode)->i_pino;
+			parent_inode = f2fs_iget(sbi->sb, pino);
+			if (IS_ERR(parent_inode)) {
+				iput(inode);
+				continue;
+			}
+
+			err = f2fs_get_name_by_ino(parent_inode, inode->i_ino, name_buf, F2FS_NAME_LEN);
+			if (err) {
+				iput(parent_inode);
+				iput(inode);
+				continue;
+			}
+
+			parent_dentry = d_obtain_alias(parent_inode);
+			if (IS_ERR(parent_dentry)) {
+				iput(inode);
+				continue;
+			}
+
+			dentry = d_alloc_name(parent_dentry, name_buf);
+			if (!dentry) {
+				dput(parent_dentry);
+				iput(inode);
+				continue;
+			}
+            
+			d_add(dentry, inode);
+
+			inode_lock(d_inode(parent_dentry));
+			err = vfs_unlink(&init_user_ns, d_inode(parent_dentry), dentry, NULL);
+			inode_unlock(d_inode(parent_dentry));
+			
+			dput(dentry);
+			dput(parent_dentry);
+		}
+	}
+}
+
 static int f2fs_fill_super(struct super_block *sb, void *data, int silent)
 {
 	struct f2fs_sb_info *sbi; // in-memory super block

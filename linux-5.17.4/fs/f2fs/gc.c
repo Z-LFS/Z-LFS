@@ -670,7 +670,9 @@ static int get_victim_by_default(struct f2fs_sb_info *sbi,
 {
 	struct dirty_seglist_info *dirty_i = DIRTY_I(sbi);
 	struct sit_info *sm = SIT_I(sbi);
+#if HOTNESS
 	struct f2fs_sm_info *sm_info = SM_I(sbi);
+#endif
 	struct victim_sel_policy p;
 	unsigned int secno, last_victim;
 	unsigned int last_segment;
@@ -1775,13 +1777,13 @@ next_step:
 
 			start_bidx = f2fs_start_bidx_of_node(nofs, inode)
 								+ ofs_in_node;
-#if HOTNESS
-			/* if file is hot,move data page */
-			if (atomic_read(&fi->i_access_count) > HOT_FILE_ACCESSED_THRESHOLD) {
-				f2fs_info(sbi,"[[zlfs]]:this hot file access count:%d\n",
-					 atomic_read(&fi->i_access_count));
-				atomic_set(&fi->i_access_count, 0);
-#endif
+// #if HOTNESS
+// 			/* if file is hot,move data page */
+// 			if (atomic_read(&fi->i_access_count) > HOT_FILE_ACCESSED_THRESHOLD) {
+// 				f2fs_info(sbi,"[[zlfs]]:this hot file access count:%d\n",
+// 					 atomic_read(&fi->i_access_count));
+// 				atomic_set(&fi->i_access_count, 0);
+// #endif
 				if (f2fs_post_read_required(inode))
 					err = move_data_block(inode, start_bidx,
 								gc_type, segno, off);
@@ -1792,24 +1794,24 @@ next_step:
 				if (!err && (gc_type == FG_GC ||
 						f2fs_post_read_required(inode)))
 					submitted++;
-#if HOTNESS
-			} else {
-				// Invalidate the data blocks of the cold file.
-				f2fs_info(sbi,"[[zlfs]]:this cold file access count:%d\n",
-						 atomic_read(&fi->i_access_count));
+// #if HOTNESS
+// 			} else {
+// 				// Invalidate the data blocks of the cold file.
+// 				f2fs_info(sbi,"[[zlfs]]:this cold file access count:%d\n",
+// 						 atomic_read(&fi->i_access_count));
 				
-				if (inode->i_nlink > 0) {
-					struct dentry *dentry = d_find_alias(inode);
-					if (dentry) {
-						struct dentry *parent = dget_parent(dentry);
-						struct inode *dir = d_inode(parent);
-						vfs_unlink(sb->s_user_ns, dir, dentry, NULL);
-						dput(parent);
-						dput(dentry);
-					}
-				}
-			}
-#endif			
+// 				if (inode->i_nlink > 0) {
+// 					struct dentry *dentry = d_find_alias(inode);
+// 					if (dentry) {
+// 						struct dentry *parent = dget_parent(dentry);
+// 						struct inode *dir = d_inode(parent);
+// 						vfs_unlink(sb->s_user_ns, dir, dentry, NULL);
+// 						dput(parent);
+// 						dput(dentry);
+// 					}
+// 				}
+// 			}
+// #endif			
 			if (locked) {
 				up_write(&fi->i_gc_rwsem[WRITE]);
 				up_write(&fi->i_gc_rwsem[READ]);

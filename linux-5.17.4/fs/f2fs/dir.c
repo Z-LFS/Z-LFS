@@ -1081,6 +1081,85 @@ out:
 	return err;
 }
 
+int f2fs_get_name_by_ino(struct inode *dir, nid_t ino, char *name, size_t len)
+{
+	if (f2fs_has_inline_dentry(dir)) {
+		struct page *ipage;
+		struct f2fs_dentry_ptr d;
+		struct f2fs_dir_entry *de;
+		int bit_pos;
+		void *inline_dentry;
+
+		ipage = f2fs_get_node_page(F2FS_I_SB(dir), dir->i_ino);
+		if (IS_ERR(ipage))
+			return PTR_ERR(ipage);
+
+		inline_dentry = inline_data_addr(dir, ipage);
+		make_dentry_ptr_inline(dir, &d, inline_dentry);
+
+		for (bit_pos = 0; bit_pos < d.max; ) {
+			if (!test_bit_le(bit_pos, d.bitmap)) {
+				bit_pos++;
+				continue;
+			}
+			de = &d.dentry[bit_pos];
+			if (le32_to_cpu(de->ino) == ino) {
+				int name_len = le16_to_cpu(de->name_len);
+				if (name_len >= len) {
+					f2fs_put_page(ipage, 1);
+					return -ENAMETOOLONG;
+				}
+				memcpy(name, d.filename[bit_pos], name_len);
+				name[name_len] = 0;
+				f2fs_put_page(ipage, 1);
+				return 0;
+			}
+			bit_pos += GET_DENTRY_SLOTS(le16_to_cpu(de->name_len));
+		}
+		f2fs_put_page(ipage, 1);
+		return -ENOENT;
+	} else {
+		unsigned long npages = dir_blocks(dir);
+		unsigned long i;
+		struct page *page;
+		struct f2fs_dentry_block *dentry_blk;
+		struct f2fs_dentry_ptr d;
+		struct f2fs_dir_entry *de;
+		int bit_pos;
+
+		for (i = 0; i < npages; i++) {
+			page = f2fs_find_data_page(dir, i);
+			if (IS_ERR(page))
+				continue;
+
+			dentry_blk = (struct f2fs_dentry_block *)page_address(page);
+			make_dentry_ptr_block(dir, &d, dentry_blk);
+
+			for (bit_pos = 0; bit_pos < d.max; ) {
+				if (!test_bit_le(bit_pos, d.bitmap)) {
+					bit_pos++;
+					continue;
+				}
+				de = &d.dentry[bit_pos];
+				if (le32_to_cpu(de->ino) == ino) {
+					int name_len = le16_to_cpu(de->name_len);
+					if (name_len >= len) {
+						f2fs_put_page(page, 0);
+						return -ENAMETOOLONG;
+					}
+					memcpy(name, d.filename[bit_pos], name_len);
+					name[name_len] = 0;
+					f2fs_put_page(page, 0);
+					return 0;
+				}
+				bit_pos += GET_DENTRY_SLOTS(le16_to_cpu(de->name_len));
+			}
+			f2fs_put_page(page, 0);
+		}
+		return -ENOENT;
+	}
+}
+
 static int f2fs_readdir(struct file *file, struct dir_context *ctx)
 {
 	struct inode *inode = file_inode(file);
