@@ -4139,6 +4139,26 @@ void f2fs_destroy_node_manager(struct f2fs_sb_info *sbi)
 		kmem_cache_free(free_nid_slab, i);
 		spin_lock(&nm_i->nid_list_lock);
 	}
+#if HOTNESS
+	while (1) {
+		struct free_nid *nidvec[NATVEC_SIZE];
+		unsigned int found;
+		unsigned int idx;
+
+		found = radix_tree_gang_lookup(&nm_i->free_nid_root,
+					(void **)nidvec, 0, NATVEC_SIZE);
+		if (!found)
+			break;
+
+		for (idx = 0; idx < found; idx++) {
+			i = nidvec[idx];
+			__remove_free_nid(sbi, i, i->state);
+			spin_unlock(&nm_i->nid_list_lock);
+			kmem_cache_free(free_nid_slab, i);
+			spin_lock(&nm_i->nid_list_lock);
+		}
+	}
+#endif
 	f2fs_bug_on(sbi, nm_i->nid_cnt[FREE_NID]);
 	f2fs_bug_on(sbi, nm_i->nid_cnt[PREALLOC_NID]);
 	f2fs_bug_on(sbi, !list_empty(&nm_i->free_nid_list));

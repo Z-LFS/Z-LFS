@@ -2857,34 +2857,32 @@ static void reset_curseg(struct f2fs_sb_info *sbi, int type, int modified)
 	struct curseg_info *curseg = CURSEG_I(sbi, type);
 #if HOTNESS
 	struct f2fs_sm_info *sm_i = SM_I(sbi);
-	struct zone_fifo_entry *entry;
 #endif
 	struct summary_footer *sum_footer;
 	unsigned short seg_type = curseg->seg_type;
 
 	curseg->inited = true;
+	curseg->segno = curseg->next_segno;
 #if HOTNESS
     // cross zone && data is cold/warm, write new zone_fifo_list
-	if (GET_ZONE_FROM_SEG(sbi, curseg->next_segno) != curseg->zone && 
+	// printk(KERN_INFO "reset_curseg: type=%d, segno=%u, zone=%u, get_zone=%u\n",
+    //    type, curseg->segno, curseg->zone, GET_ZONE_FROM_SEG(sbi, curseg->segno));
+
+	if (GET_ZONE_FROM_SEG(sbi, curseg->segno) != curseg->zone && 
 			(type == CURSEG_COLD_DATA || type == CURSEG_WARM_DATA) && curseg->zone != 0) {
 
-		f2fs_info(sbi, "zone changed: segno=%u, old_zone=%u, new_zone=%u, type=%d\n",
-           curseg->next_segno, curseg->zone, GET_ZONE_FROM_SEG(sbi, curseg->next_segno), type);
+		
 
-		entry = kmalloc(sizeof(*entry), GFP_NOFS);
+		struct zone_fifo_entry *entry = kmalloc(sizeof(*entry), GFP_NOFS);
 		if (entry) {
-			// printk(KERN_INFO "zone_fifo_entry allocte success\n");
-			// insert old zone 
-			// entry->zone_id = GET_ZONE_FROM_SEG(sbi, curseg->segno);
+			printk(KERN_INFO "zone changed: segno=%u, old_zone=%u, new_zone=%u, type=%d\n",
+           		curseg->segno, curseg->zone, GET_ZONE_FROM_SEG(sbi, curseg->segno), type);
 			entry->zone_id = curseg->zone;
-
-			spin_lock(&sm_i->zone_fifo_lock);
+			entry->next_segno = curseg->segno - sbi->segs_per_sec - 1;
 			list_add_tail(&entry->list, &sm_i->zone_fifo_list);
-			spin_unlock(&sm_i->zone_fifo_lock);
 		}
 	}
 #endif
-	curseg->segno = curseg->next_segno;
 	curseg->zone = GET_ZONE_FROM_SEG(sbi, curseg->segno);
 	curseg->next_blkoff = 0;
 	curseg->next_segno = NULL_SEGNO;
@@ -7249,7 +7247,6 @@ int f2fs_build_segment_manager(struct f2fs_sb_info *sbi)
 #if HOTNESS
 		//init every curzone_fifo_list
 		INIT_LIST_HEAD(&sm_info->zone_fifo_list);
-		spin_lock_init(&sm_info->zone_fifo_lock);
 #endif
 	sm_info->seg0_blkaddr = le32_to_cpu(raw_super->segment0_blkaddr);
 	sm_info->main_blkaddr = le32_to_cpu(raw_super->main_blkaddr);

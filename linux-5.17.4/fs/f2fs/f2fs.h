@@ -779,6 +779,9 @@ enum {
 	FI_ENABLE_COMPRESS,	/* enable compression in "user" compression mode */
 	FI_COMPRESS_RELEASED,	/* compressed blocks were released */
 	FI_ALIGNED_WRITE,	/* enable aligned write */
+#if HOTNESS
+	FI_COLD_FILE_QUEUED,	/* indicate file is queued for deletion */
+#endif
 	FI_MAX,			/* max flag, never be used */
 };
 
@@ -1081,6 +1084,7 @@ struct flush_cmd_control {
 struct zone_fifo_entry {
     struct list_head list;
     unsigned int zone_id;
+    unsigned int next_segno;
 };
 #endif
 
@@ -1705,6 +1709,13 @@ struct decompress_io_ctx {
 #define MAX_COMPRESS_LOG_SIZE		8
 #define MAX_COMPRESS_WINDOW_SIZE(log_size)	((PAGE_SIZE) << (log_size))
 
+#if HOTNESS
+struct cold_inode_entry {
+	struct list_head list;
+	nid_t nid;
+};
+#endif
+
 struct f2fs_sb_info {
 	struct super_block *sb;			/* pointer to VFS super block */
 	struct proc_dir_entry *s_proc;		/* proc entry */
@@ -1959,7 +1970,18 @@ struct f2fs_sb_info {
   struct task_struct *monitor_thread;
   int f2fs_open_zones;
 #endif
+#if HOTNESS
+	struct list_head cold_inode_list;	/* list for cold inodes */
+	spinlock_t cold_inode_lock;		/* lock for cold inode list */
+	wait_queue_head_t cold_inode_wait_queue; /* wait queue for cold inode thread */
+	struct task_struct *cold_inode_task;	/* cold inode thread */
+#endif
 };
+
+#if HOTNESS
+int f2fs_start_cold_file_thread(struct f2fs_sb_info *sbi);
+void f2fs_stop_cold_file_thread(struct f2fs_sb_info *sbi);
+#endif
 
 #ifdef CONFIG_F2FS_FAULT_INJECTION
 #define f2fs_show_injection_info(sbi, type)					\
@@ -3576,6 +3598,10 @@ int f2fs_do_add_link(struct inode *dir, const struct qstr *name,
 			struct inode *inode, nid_t ino, umode_t mode);
 void f2fs_delete_entry(struct f2fs_dir_entry *dentry, struct page *page,
 			struct inode *dir, struct inode *inode);
+#if HOTNESS
+struct f2fs_dir_entry *f2fs_find_entry_by_ino(struct inode *dir, nid_t ino,
+			struct page **res_page);
+#endif
 int f2fs_do_tmpfile(struct inode *inode, struct inode *dir);
 bool f2fs_empty_dir(struct inode *dir);
 

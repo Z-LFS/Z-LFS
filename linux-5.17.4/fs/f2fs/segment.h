@@ -678,6 +678,15 @@ static inline bool has_not_enough_free_secs(struct f2fs_sb_info *sbi,
 	if (unlikely(is_sbi_flag_set(sbi, SBI_POR_DOING)))
 		return false;
 
+#if HOTNESS
+	/* Trigger GC if logical space is running out, to allow cold file deletion */
+	if (sbi->total_valid_block_count > sbi->user_block_count - (sbi->user_block_count >> 5)) {
+		f2fs_info(sbi, "logical space running out: valid %u, user %u",
+			sbi->total_valid_block_count, sbi->user_block_count);
+		return true;
+	}
+#endif
+
 	if (free_sections(sbi) + freed == reserved_sections(sbi) + needed &&
 			has_curseg_enough_space(sbi))
 		return false;

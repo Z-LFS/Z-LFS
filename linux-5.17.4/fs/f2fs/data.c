@@ -1214,8 +1214,13 @@ int f2fs_reserve_new_blocks(struct dnode_of_data *dn, blkcnt_t count)
 
 	if (unlikely(is_inode_flag_set(dn->inode, FI_NO_ALLOC)))
 		return -EPERM;
-	if (unlikely((err = inc_valid_block_count(sbi, dn->inode, &count))))
+	if (unlikely((err = inc_valid_block_count(sbi, dn->inode, &count)))) {
+		printk(KERN_ERR "DEBUG_GC: inc_valid_block_count failed. err=%d. valid=%u, user=%u, free_sec=%u\n",
+			err, (unsigned int)sbi->total_valid_block_count,
+			(unsigned int)sbi->user_block_count,
+			free_sections(sbi));
 		return err;
+	}
 
 	trace_f2fs_reserve_new_blocks(dn->inode, dn->nid,
 						dn->ofs_in_node, count);
@@ -3521,8 +3526,15 @@ repeat:
 
 	err = prepare_write_begin(sbi, page, pos, len,
 					&blkaddr, &need_balance);
-	if (err)
+	if (err) {
+		if (err == -ENOSPC) {
+			printk(KERN_ERR "DEBUG_GC: prepare_write_begin failed with ENOSPC. valid=%u, user=%u, free_sec=%u\n",
+				(unsigned int)sbi->total_valid_block_count,
+				(unsigned int)sbi->user_block_count,
+				free_sections(sbi));
+		}
 		goto fail;
+	}
 
 	if (need_balance && !IS_NOQUOTA(inode) &&
 			has_not_enough_free_secs(sbi, 0, 0)) {

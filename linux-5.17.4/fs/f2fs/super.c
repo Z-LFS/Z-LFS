@@ -12,6 +12,7 @@
 #include <linux/statfs.h>
 #include <linux/buffer_head.h>
 #include <linux/kthread.h>
+#include <linux/freezer.h>
 #include <linux/parser.h>
 #include <linux/mount.h>
 #include <linux/seq_file.h>
@@ -1880,6 +1881,9 @@ static void f2fs_put_super(struct super_block *sb)
 	 * flush all issued checkpoints and stop checkpoint issue thread.
 	 * after then, all checkpoints should be done by each process context.
 	 */
+#if HOTNESS
+	f2fs_stop_cold_file_thread(sbi);
+#endif
 	f2fs_stop_ckpt_thread(sbi);
 #if DELAYED_MERGE
 #if !NAIVE_MFZ
@@ -4463,11 +4467,112 @@ static int f2fs_check_meta_boundary(struct f2fs_sb_info *sbi)
 	return 0;
 }
 #endif
+#if HOTNESS
 /**
  * super_block: 由 VFS 在 sget() 或 sget_fc() 里新建的。
  * data: 用户在挂载文件系统时指定的选项。
  * silent: 静默模式标志。如果为非零值，则禁止打印错误信息。
  */
+static int f2fs_cold_file_thread_func(void *data)
+{
+	struct f2fs_sb_info *sbi = data;
+	struct cold_inode_entry *entry;
+	struct inode *inode, *dir;
+	struct f2fs_dir_entry *de;
+	struct page *page;
+	nid_t pino;
+
+	set_freezable();
+
+	while (!kthread_should_stop()) {
+		wait_event_interruptible(sbi->cold_inode_wait_queue,
+			!list_empty(&sbi->cold_inode_list) || kthread_should_stop());
+
+		if (kthread_should_stop())
+			break;
+
+		spin_lock(&sbi->cold_inode_lock);
+		if (list_empty(&sbi->cold_inode_list)) {
+			spin_unlock(&sbi->cold_inode_lock);
+			continue;
+		}
+		entry = list_first_entry(&sbi->cold_inode_list,
+					struct cold_inode_entry, list);
+		list_del(&entry->list);
+		spin_unlock(&sbi->cold_inode_lock);
+
+		// f2fs_info(sbi, "Cold file thread: processing nid %u", entry->nid);
+
+		inode = f2fs_iget(sbi->sb, entry->nid);
+		if (IS_ERR(inode)) {
+			f2fs_err(sbi, "Failed to get cold inode %u", entry->nid);
+			kfree(entry);
+			continue;
+		}
+
+		pino = F2FS_I(inode)->i_pino;
+		dir = f2fs_iget(sbi->sb, pino);
+		if (IS_ERR(dir)) {
+			f2fs_err(sbi, "Failed to get parent inode %u", pino);
+			iput(inode);
+			kfree(entry);
+			continue;
+		}
+
+		f2fs_lock_op(sbi);
+		down_write(&F2FS_I(dir)->i_sem);
+
+		de = f2fs_find_entry_by_ino(dir, entry->nid, &page);
+		if (de) {
+			f2fs_delete_entry(de, page, dir, inode);
+			
+			/* 
+			 * Prune VFS aliases to ensure dentry is released.
+			 * Decrement link count to trigger eviction on iput.
+			 */
+			d_prune_aliases(inode);
+			
+			// f2fs_info(sbi, "Cold file deleted: nid %u", entry->nid);
+		} else {
+			f2fs_warn(sbi, "Cold file entry not found: nid %u", entry->nid);
+		}
+
+		up_write(&F2FS_I(dir)->i_sem);
+		f2fs_unlock_op(sbi);
+
+		iput(dir);
+		iput(inode);
+		kfree(entry);
+	}
+	return 0;
+}
+
+int f2fs_start_cold_file_thread(struct f2fs_sb_info *sbi)
+{
+	struct task_struct *tsk;
+
+	if (sbi->cold_inode_task)
+		return 0;
+
+	tsk = kthread_run(f2fs_cold_file_thread_func, sbi,
+			"f2fs_cold_file");
+	if (IS_ERR(tsk)) {
+		f2fs_err(sbi, "Failed to start cold file thread");
+		return PTR_ERR(tsk);
+	}
+	sbi->cold_inode_task = tsk;
+	return 0;
+}
+
+void f2fs_stop_cold_file_thread(struct f2fs_sb_info *sbi)
+{
+	if (sbi->cold_inode_task) {
+		kthread_stop(sbi->cold_inode_task);
+		sbi->cold_inode_task = NULL;
+	}
+}
+#endif
+
 static int f2fs_fill_super(struct super_block *sb, void *data, int silent)
 {
 	struct f2fs_sb_info *sbi; // in-memory super block
@@ -4614,7 +4719,11 @@ try_onemore:
 	init_rwsem(&sbi->quota_sem);
 	init_waitqueue_head(&sbi->cp_wait);
 	init_sb_info(sbi);
-
+#if HOTNESS
+	INIT_LIST_HEAD(&sbi->cold_inode_list);
+	spin_lock_init(&sbi->cold_inode_lock);
+	init_waitqueue_head(&sbi->cold_inode_wait_queue);
+#endif
 	err = f2fs_init_iostat(sbi);
 	if (err)
 		goto free_bio_info;
@@ -4925,6 +5034,12 @@ reset_checkpoint:
 	f2fs_update_time(sbi, REQ_TIME);
 	clear_sbi_flag(sbi, SBI_CP_DISABLED_QUICK);
 
+#if HOTNESS
+	err = f2fs_start_cold_file_thread(sbi);
+	if (err)
+		goto sync_free_meta;
+#endif
+
 #if ZF2FS_MONITOR
     err = f2fs_start_monitor_thread(sbi);
 		if (err) {
@@ -4984,6 +5099,9 @@ stop_merge_thread:
 #endif
 #endif
 stop_ckpt_thread:
+#if HOTNESS
+	f2fs_stop_cold_file_thread(sbi);
+#endif
 	f2fs_stop_ckpt_thread(sbi);
 free_devices:
 	destroy_device_list(sbi);

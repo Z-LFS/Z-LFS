@@ -685,6 +685,10 @@ static int get_victim_by_default(struct f2fs_sb_info *sbi,
   int free_cnt = SM_I(sbi)->free_sz_cnt[0];
 #endif
 
+#if HOTNESS
+	// f2fs_info(sbi, "DEBUG_GC: get_victim_by_default called. gc_type=%d, alloc_mode=%d\n", gc_type, alloc_mode);
+#endif
+
 	mutex_lock(&dirty_i->seglist_lock);
 	last_segment = MAIN_SECS(sbi) * sbi->segs_per_sec;
 
@@ -720,21 +724,48 @@ retry:
 	ret = -ENODATA;
 	if (p.max_search == 0)
 		goto out;
+
 #if HOTNESS
+    // f2fs_info(sbi, "DEBUG_GC: is_large_section=%d, alloc_mode=%d, list_empty=%d", 
+    //     __is_large_section(sbi), p.alloc_mode, list_empty(&sm_info->zone_fifo_list));
+#endif
+
 	if (__is_large_section(sbi) && p.alloc_mode == LFS) {
-		f2fs_info(sbi,"[[f2fs_log]]sbi is large section && p.alloc_mode = LFS [by jx]\n");
+#if HOTNESS
+		// f2fs_info(sbi,"[[f2fs_log]]sbi is large section && p.alloc_mode = LFS\n");
 		if (!list_empty(&sm_info->zone_fifo_list)) {
-			struct zone_fifo_entry *entry = list_first_entry(&sm_info->zone_fifo_list, struct zone_fifo_entry, list);
-			unsigned int secno_temp = entry->zone_id;
-			p.min_segno = GET_SEG_FROM_SEC(sbi, secno_temp); // sbi->segs_per_sec * secno
-			*result = p.min_segno;
-			f2fs_info(sbi,"[[ZLFS_INFO]]del secno = %u\n", secno_temp);
-			// 删除该 zone
-			list_del(&entry->list);
-			kfree(entry); // 如果 entry 是 kmalloc 分配的
-			goto got_result;
+			struct zone_fifo_entry *entry, *tmp;
+			list_for_each_entry_safe(entry, tmp, &sm_info->zone_fifo_list, list) {
+				unsigned int secno_temp = entry->zone_id;
+				unsigned int start_segno = GET_SEG_FROM_SEC(sbi, secno_temp);
+				unsigned int end_segno = start_segno + sbi->segs_per_sec;
+				unsigned int segno;
+				bool found_victim = false;
+
+				if (entry->next_segno < start_segno || entry->next_segno >= end_segno)
+					entry->next_segno = start_segno;
+
+				for (segno = entry->next_segno; segno < end_segno; segno++) {
+					if (get_valid_blocks(sbi, segno, false) > 0) {
+						p.min_segno = segno;
+						*result = p.min_segno;
+						found_victim = true;
+						entry->next_segno = segno + 1;
+						break;
+					}
+				}
+
+				if (found_victim) {
+					goto got_result;
+				} else {
+					f2fs_info(sbi,"[[ZLFS_INFO]]zone %u finished, del from list\n", secno_temp);
+					list_del(&entry->list);
+					kfree(entry);
+				}
+			}
+		} else {
+			f2fs_info(sbi,"[[f2fs_log]]zone fifo list is empty\n");
 		}
-	}
 #else
 		if (sbi->next_victim_seg[BG_GC] != NULL_SEGNO) {
 			p.min_segno = sbi->next_victim_seg[BG_GC];
@@ -751,6 +782,7 @@ retry:
 			goto got_result;
 		}
 #endif
+	}
 
 	last_victim = sm->last_victim[p.gc_mode];
 	if (p.alloc_mode == LFS && gc_type == FG_GC) {
@@ -1523,32 +1555,6 @@ out:
 	f2fs_put_page(page, 1);
 	return err;
 }
-//static int is_alive_err = 0;
-//static int cnt_grep = 0;
-
-#if HOTNESS
-/* adjust if all blocks in segment is invalid */
-bool all_blocks_invalid(struct f2fs_sb_info *sbi, struct inode *inode)
-{
-    pgoff_t total_blocks = (i_size_read(inode) + PAGE_SIZE - 1) >> PAGE_SHIFT;
-    pgoff_t index;
-	f2fs_info(sbi,"[[ZLFS_INFO]] total_blocks = %lu\n", total_blocks);
-
-    for (index = 0; index < total_blocks; index++) {
-        struct dnode_of_data dn;
-        set_new_dnode(&dn, inode, NULL, NULL, 0);
-        if (f2fs_get_dnode_of_data(&dn, index, LOOKUP_NODE) == 0) {
-            block_t blkaddr = dn.data_blkaddr;
-            if (blkaddr != NULL_ADDR) {
-                f2fs_put_dnode(&dn);
-                return false;
-            }
-            f2fs_put_dnode(&dn);
-        }
-    }
-    return true;
-}
-#endif
 
 /*
  * This function tries to get parent node of victim data block, and identifies
@@ -1777,13 +1783,13 @@ next_step:
 
 			start_bidx = f2fs_start_bidx_of_node(nofs, inode)
 								+ ofs_in_node;
-// #if HOTNESS
-// 			/* if file is hot,move data page */
-// 			if (atomic_read(&fi->i_access_count) > HOT_FILE_ACCESSED_THRESHOLD) {
-// 				f2fs_info(sbi,"[[zlfs]]:this hot file access count:%d\n",
-// 					 atomic_read(&fi->i_access_count));
-// 				atomic_set(&fi->i_access_count, 0);
-// #endif
+
+#if HOTNESS
+			/* if file is hot,move data page */
+			if (atomic_read(&fi->i_access_count) > HOT_FILE_ACCESSED_THRESHOLD) {
+				f2fs_info(sbi,"[[zlfs]]:this hot file access count:%d\n",
+					 atomic_read(&fi->i_access_count));
+#endif
 				if (f2fs_post_read_required(inode))
 					err = move_data_block(inode, start_bidx,
 								gc_type, segno, off);
@@ -1794,24 +1800,24 @@ next_step:
 				if (!err && (gc_type == FG_GC ||
 						f2fs_post_read_required(inode)))
 					submitted++;
-// #if HOTNESS
-// 			} else {
-// 				// Invalidate the data blocks of the cold file.
-// 				f2fs_info(sbi,"[[zlfs]]:this cold file access count:%d\n",
-// 						 atomic_read(&fi->i_access_count));
+#if HOTNESS
+			} else {
 				
-// 				if (inode->i_nlink > 0) {
-// 					struct dentry *dentry = d_find_alias(inode);
-// 					if (dentry) {
-// 						struct dentry *parent = dget_parent(dentry);
-// 						struct inode *dir = d_inode(parent);
-// 						vfs_unlink(sb->s_user_ns, dir, dentry, NULL);
-// 						dput(parent);
-// 						dput(dentry);
-// 					}
-// 				}
-// 			}
-// #endif			
+				if (!is_inode_flag_set(inode, FI_COLD_FILE_QUEUED)) {
+					struct cold_inode_entry *entry;
+					entry = kmalloc(sizeof(struct cold_inode_entry), GFP_NOFS);
+					if (entry) {
+						// f2fs_info(sbi,"[[zlfs]]:queue cold file inode:%lu\n", inode->i_ino);
+						entry->nid = inode->i_ino;
+						spin_lock(&sbi->cold_inode_lock);
+						list_add_tail(&entry->list, &sbi->cold_inode_list);
+						spin_unlock(&sbi->cold_inode_lock);
+						set_inode_flag(inode, FI_COLD_FILE_QUEUED);
+						wake_up(&sbi->cold_inode_wait_queue);
+					}
+				}
+			}
+#endif			
 			if (locked) {
 				up_write(&fi->i_gc_rwsem[WRITE]);
 				up_write(&fi->i_gc_rwsem[READ]);
@@ -2126,8 +2132,15 @@ gc_more:
 	ret = __get_victim(sbi, &segno, gc_type);
   ktime_get_raw_ts64(&ts_f2fs_gc[0][1]);
   calclock(ts_f2fs_gc[0], &time[0], &cnt[0]);
-	if (ret)
+	if (ret) {
+#if HOTNESS
+		if (has_not_enough_free_secs(sbi, 0, 0) && gc_type == FG_GC &&
+				!is_sbi_flag_set(sbi, SBI_CP_DISABLED)) {
+			f2fs_write_checkpoint(sbi, &cpc);
+		}
+#endif
 		goto stop;
+	}
 
   ktime_get_raw_ts64(&ts_f2fs_gc[1][0]);
 	seg_freed = do_garbage_collect(sbi, segno, &gc_list, gc_type, force);
@@ -2135,8 +2148,9 @@ gc_more:
   calclock(ts_f2fs_gc[1], &time[1], &cnt[1]);
 
 	if (gc_type == FG_GC &&
-		seg_freed == f2fs_usable_segs_in_sec(sbi, segno))
+		seg_freed == f2fs_usable_segs_in_sec(sbi, segno)) {
 		sec_freed++;
+	}
 	total_freed += seg_freed;
 
 	if (gc_type == FG_GC) {
