@@ -541,7 +541,7 @@ static int f2fs_file_open(struct inode *inode, struct file *filp)
 	if ((filp->f_mode & FMODE_READ) && !(filp->f_mode & FMODE_WRITE)) {
 		struct f2fs_sb_info *sbi = F2FS_I_SB(inode);
 		atomic_inc(&F2FS_I(inode)->i_access_count);
-		f2fs_info(sbi, "[[zlfs]]: file read open, access count:%d\n", atomic_read(&F2FS_I(inode)->i_access_count));
+		f2fs_info(sbi, "[[zlfs]]: file read open, access count:%d", atomic_read(&F2FS_I(inode)->i_access_count));
 	}
 #endif
 
@@ -3812,6 +3812,7 @@ static int f2fs_sec_trim_file(struct file *filp, unsigned long arg)
 		for (i = 0; i < count; i++, index++, dn.ofs_in_node++) {
 			struct block_device *cur_bdev;
 			block_t blkaddr = f2fs_data_blkaddr(&dn);
+			int di = 0;
 
 			if (!__is_valid_data_blkaddr(blkaddr))
 				continue;
@@ -3823,7 +3824,6 @@ static int f2fs_sec_trim_file(struct file *filp, unsigned long arg)
 				goto out;
 			}
 
-			int di = 0;
 			cur_bdev = f2fs_target_device(sbi, blkaddr, NULL);
 			if (f2fs_is_multi_device(sbi)) {
 				// int di = f2fs_target_device_index(sbi, blkaddr);

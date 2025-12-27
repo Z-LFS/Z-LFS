@@ -1,6 +1,6 @@
 cd ~/Z-LFS/linux-5.17.4
 
-sudo umount -l /mnt/f2fs
+sudo umount /mnt/f2fs
 
 make M=fs/f2fs clean
 
@@ -38,9 +38,9 @@ sudo ../f2fs-tools-1.15.0/mkfs/mkfs.f2fs -d 1 -f -m /dev/$DEV
 # sudo ../f2fs-tools-1.15.0/mkfs/mkfs.f2fs -d 1 -f -m /dev/nvme3n6
 # sudo ../f2fs-tools-1.15.0/mkfs/mkfs.f2fs -d 1 -f -m /dev/nvme3n5
 
-
+sudo mount -t f2fs -o background_gc=off /dev/$DEV /mnt/f2fs
 # sudo mount /dev/$DEV /mnt/ZNS
-sudo mount /dev/$DEV /mnt/f2fs
+# sudo mount /dev/$DEV /mnt/f2fs
 # 挂载zlfs
 # sudo mount -t zlfs /dev/nvme3n4 /mnt/ZNS
 

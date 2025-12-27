@@ -1084,7 +1084,6 @@ struct flush_cmd_control {
 struct zone_fifo_entry {
     struct list_head list;
     unsigned int zone_id;
-    unsigned int next_segno;
 };
 #endif
 
@@ -1713,6 +1712,7 @@ struct decompress_io_ctx {
 struct cold_inode_entry {
 	struct list_head list;
 	nid_t nid;
+	block_t blocks;
 };
 #endif
 
@@ -1975,6 +1975,7 @@ struct f2fs_sb_info {
 	spinlock_t cold_inode_lock;		/* lock for cold inode list */
 	wait_queue_head_t cold_inode_wait_queue; /* wait queue for cold inode thread */
 	struct task_struct *cold_inode_task;	/* cold inode thread */
+	block_t cold_file_pending_blocks;	/* blocks of cold files queued for deletion */
 #endif
 };
 

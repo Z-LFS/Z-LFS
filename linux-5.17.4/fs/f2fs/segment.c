@@ -517,6 +517,7 @@ void f2fs_balance_fs(struct f2fs_sb_info *sbi, bool need)
 	 * dir/node pages without enough free segments.
 	 */
 	if (has_not_enough_free_secs(sbi, 0, 0)) {
+		int ret;
 		if (test_opt(sbi, GC_MERGE) && sbi->gc_thread &&
 					sbi->gc_thread->f2fs_gc_task) {
 			DEFINE_WAIT(wait);
@@ -528,7 +529,11 @@ void f2fs_balance_fs(struct f2fs_sb_info *sbi, bool need)
 			finish_wait(&sbi->gc_thread->fggc_wq, &wait);
 		} else {
 			down_write(&sbi->gc_lock);
-			f2fs_gc(sbi, false, false, false, NULL_SEGNO);
+			ret = f2fs_gc(sbi, false, false, false, NULL_SEGNO);
+			if (ret == 0 && printk_ratelimit()) {
+        		f2fs_info(sbi, "[%s,%d]:f2fs_gc called but freed 0 segments! free_secs=%d",
+					__func__, __LINE__, free_sections(sbi));
+    		}
 		}
 	}
 }
@@ -2870,16 +2875,16 @@ static void reset_curseg(struct f2fs_sb_info *sbi, int type, int modified)
 
 	if (GET_ZONE_FROM_SEG(sbi, curseg->segno) != curseg->zone && 
 			(type == CURSEG_COLD_DATA || type == CURSEG_WARM_DATA) && curseg->zone != 0) {
-
 		
-
 		struct zone_fifo_entry *entry = kmalloc(sizeof(*entry), GFP_NOFS);
 		if (entry) {
-			printk(KERN_INFO "zone changed: segno=%u, old_zone=%u, new_zone=%u, type=%d\n",
-           		curseg->segno, curseg->zone, GET_ZONE_FROM_SEG(sbi, curseg->segno), type);
+			f2fs_info(sbi, "[%s,%d] zone changed: segno=%u, old_zone=%u, new_zone=%u, type=%d\n",
+					__func__, __LINE__, 
+					curseg->segno, curseg->zone, GET_ZONE_FROM_SEG(sbi, curseg->segno), type);
 			entry->zone_id = curseg->zone;
-			entry->next_segno = curseg->segno - sbi->segs_per_sec - 1;
+			spin_lock(&sm_i->zone_fifo_lock);
 			list_add_tail(&entry->list, &sm_i->zone_fifo_list);
+			spin_unlock(&sm_i->zone_fifo_lock);
 		}
 	}
 #endif
@@ -7245,8 +7250,9 @@ int f2fs_build_segment_manager(struct f2fs_sb_info *sbi)
 	/* init sm info */
 	sbi->sm_info = sm_info;
 #if HOTNESS
-		//init every curzone_fifo_list
+		// init zone fifo list used by hotness-aware GC
 		INIT_LIST_HEAD(&sm_info->zone_fifo_list);
+		spin_lock_init(&sm_info->zone_fifo_lock);
 #endif
 	sm_info->seg0_blkaddr = le32_to_cpu(raw_super->segment0_blkaddr);
 	sm_info->main_blkaddr = le32_to_cpu(raw_super->main_blkaddr);
@@ -7282,6 +7288,7 @@ int f2fs_build_segment_manager(struct f2fs_sb_info *sbi)
 #endif //DELAYED_MERGE
 
 #if DELAYED_MERGE
+	init_rwsem(&sm_info->sit_ltree_slock);
 	init_rwsem(&sm_info->ssa_ltree_slock);
 #endif
 #endif //META_FOR_ZNS

@@ -4024,6 +4024,11 @@ static int init_node_manager(struct f2fs_sb_info *sbi)
 	mutex_init(&nm_i->build_lock);
 	spin_lock_init(&nm_i->nid_list_lock);
 	init_rwsem(&nm_i->nat_tree_lock);
+#if META_FOR_ZNS
+#if DELAYED_MERGE
+	init_rwsem(&nm_i->nat_ltree_slock);
+#endif
+#endif
 
 	nm_i->next_scan_nid = le32_to_cpu(sbi->ckpt->next_free_nid);
 	nm_i->bitmap_size = __bitmap_size(sbi, NAT_BITMAP);
