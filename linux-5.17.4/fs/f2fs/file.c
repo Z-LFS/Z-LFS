@@ -541,7 +541,8 @@ static int f2fs_file_open(struct inode *inode, struct file *filp)
 	if ((filp->f_mode & FMODE_READ) && !(filp->f_mode & FMODE_WRITE)) {
 		struct f2fs_sb_info *sbi = F2FS_I_SB(inode);
 		atomic_inc(&F2FS_I(inode)->i_access_count);
-		f2fs_info(sbi, "[[zlfs]]: file read open, access count:%d", atomic_read(&F2FS_I(inode)->i_access_count));
+		// f2fs_info(sbi, "[%s:%d]: file read open, access count:%d", 
+		// 	__func__, __LINE__, atomic_read(&F2FS_I(inode)->i_access_count));
 	}
 #endif
 

@@ -747,11 +747,11 @@ retry:
 
 			p.min_segno = start_segno;
 			*result = p.min_segno;
-			f2fs_info(sbi, "[%s,%d]:zone %u finished, del from list\n", __func__, __LINE__, secno);
+			// f2fs_info(sbi, "[%s,%d]:zone %u finished, del from list", __func__, __LINE__, secno);
 			goto got_result;
 		}
 		spin_unlock(&sm_info->zone_fifo_lock);
-		f2fs_info(sbi, "[%s,%d]:zone fifo list is empty\n", __func__, __LINE__);
+		// f2fs_info(sbi, "[%s,%d]:zone fifo list is empty\n", __func__, __LINE__);
 		ret = -ENODATA;
 		goto out;
 #else
@@ -1133,7 +1133,7 @@ static bool is_alive(struct f2fs_sb_info *sbi, struct f2fs_summary *sum,
 
 	node_page = f2fs_get_node_page(sbi, nid);
 	if (IS_ERR(node_page)) {
-    printk("(%s:%d) node page error", __func__, __LINE__);
+    // printk("(%s:%d) node page error", __func__, __LINE__);
 		return false;
   }
 
@@ -1824,7 +1824,7 @@ next_step:
 					struct cold_inode_entry *entry;
 					entry = kmalloc(sizeof(struct cold_inode_entry), GFP_NOFS);
 					if (entry) {
-						f2fs_info(sbi,"[%s,%d]:queue cold file inode:%lu", __func__, __LINE__, inode->i_ino);
+						// f2fs_info(sbi,"[%s,%d]:queue cold file inode:%lu", __func__, __LINE__, inode->i_ino);
 						entry->nid = inode->i_ino;
 						entry->blocks = SECTOR_TO_BLOCK(inode->i_blocks);
 						// f2fs_info(sbi,"[%s,%d]:cold file blocks:%u, i_blocks:%llu", 
@@ -2180,10 +2180,10 @@ gc_more:
   calclock(ts_f2fs_gc[1], &time[1], &cnt[1]);
 
 #if HOTNESS
-	f2fs_info(sbi, "[%s,%d]:gc segno:%u, seg_freed:%d, free secs:%u\n",
-		__func__, __LINE__, segno, seg_freed, free_sections(sbi));
+	// f2fs_info(sbi, "[%s,%d]:gc segno:%u, seg_freed:%d, free secs:%u",
+	// 	__func__, __LINE__, segno, seg_freed, free_sections(sbi));
 	if (gc_type == FG_GC && !is_sbi_flag_set(sbi, SBI_CP_DISABLED)) {
-		f2fs_info(sbi, "[%s:%d]:write checkpoint in fg gc\n", __func__, __LINE__);
+		// f2fs_info(sbi, "[%s:%d]:write checkpoint in fg gc", __func__, __LINE__);
 		ret = f2fs_write_checkpoint(sbi, &cpc);
 		if (ret)
 			goto stop;

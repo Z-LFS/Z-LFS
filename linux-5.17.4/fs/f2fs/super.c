@@ -2095,14 +2095,14 @@ static int f2fs_statfs(struct dentry *dentry, struct kstatfs *buf)
 	buf->f_bfree = user_block_count - valid_user_blocks(sbi) -
 						sbi->current_reserved_blocks;
 
-#if HOTNESS
-	if (printk_ratelimit()) {
-		f2fs_info(sbi, "[%s:%d] user %u, valid %u, reserved %u, bfree %llu",
-			__func__, __LINE__,
-			user_block_count, valid_user_blocks(sbi),
-			sbi->current_reserved_blocks, buf->f_bfree);
-	}
-#endif
+// #if HOTNESS
+// 	if (printk_ratelimit()) {
+// 		f2fs_info(sbi, "[%s:%d] user %u, valid %u, reserved %u, bfree %llu",
+// 			__func__, __LINE__,
+// 			user_block_count, valid_user_blocks(sbi),
+// 			sbi->current_reserved_blocks, buf->f_bfree);
+// 	}
+// #endif
 
 	spin_lock(&sbi->stat_lock);
 	if (unlikely(buf->f_bfree <= sbi->unusable_block_count))
@@ -4547,8 +4547,8 @@ static int f2fs_cold_file_thread_func(void *data)
 			 */
 			d_prune_aliases(inode);
 			
-			f2fs_info(sbi, "Cold file deleted: nid %u, i_count %d, i_nlink %d", 
-				entry->nid, atomic_read(&inode->i_count), inode->i_nlink);
+			// f2fs_info(sbi, "Cold file deleted: nid %u, i_count %d, i_nlink %d", 
+			// 	entry->nid, atomic_read(&inode->i_count), inode->i_nlink);
 		} else {
 			f2fs_warn(sbi, "Cold file entry not found: nid %u", entry->nid);
 		}

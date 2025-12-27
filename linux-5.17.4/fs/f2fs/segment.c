@@ -530,10 +530,10 @@ void f2fs_balance_fs(struct f2fs_sb_info *sbi, bool need)
 		} else {
 			down_write(&sbi->gc_lock);
 			ret = f2fs_gc(sbi, false, false, false, NULL_SEGNO);
-			if (ret == 0 && printk_ratelimit()) {
-        		f2fs_info(sbi, "[%s,%d]:f2fs_gc called but freed 0 segments! free_secs=%d",
-					__func__, __LINE__, free_sections(sbi));
-    		}
+			// if (ret == 0 && printk_ratelimit()) {
+        	// 	f2fs_info(sbi, "[%s,%d]:f2fs_gc called but freed 0 segments! free_secs=%d",
+			// 		__func__, __LINE__, free_sections(sbi));
+    		// }
 		}
 	}
 }
@@ -2878,9 +2878,9 @@ static void reset_curseg(struct f2fs_sb_info *sbi, int type, int modified)
 		
 		struct zone_fifo_entry *entry = kmalloc(sizeof(*entry), GFP_NOFS);
 		if (entry) {
-			f2fs_info(sbi, "[%s,%d] zone changed: segno=%u, old_zone=%u, new_zone=%u, type=%d\n",
-					__func__, __LINE__, 
-					curseg->segno, curseg->zone, GET_ZONE_FROM_SEG(sbi, curseg->segno), type);
+			// f2fs_info(sbi, "[%s,%d] zone changed: segno=%u, old_zone=%u, new_zone=%u, type=%d",
+			// 		__func__, __LINE__, 
+			// 		curseg->segno, curseg->zone, GET_ZONE_FROM_SEG(sbi, curseg->segno), type);
 			entry->zone_id = curseg->zone;
 			spin_lock(&sm_i->zone_fifo_lock);
 			list_add_tail(&entry->list, &sm_i->zone_fifo_list);

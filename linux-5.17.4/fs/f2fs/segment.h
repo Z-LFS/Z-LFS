@@ -740,22 +740,22 @@ static inline bool has_not_enough_free_secs(struct f2fs_sb_info *sbi,
 				else
 					bavail = 0;
 
-				f2fs_info(sbi,
-					"[%s:%d] logical space running out: valid %u (pending %u), user %u, threshold %u (margin %u), over %lld, bfree %lld, bavail %llu,cur_rsv %u, unusable %u, root_rsv %u, free_secs %u, prefree_segs %u",
-					__func__, __LINE__,
-					(unsigned int)valid_blocks,
-					(unsigned int)pending_blocks,
-					(unsigned int)user_block_count,
-					(unsigned int)hotness_threshold,
-					(unsigned int)hotness_margin,
-					(long long)((long long)valid_blocks - (long long)hotness_threshold),
-					(long long)bfree,
-					(unsigned long long)bavail,
-					(unsigned int)current_reserved_blocks,
-					(unsigned int)unusable_blocks,
-					(unsigned int)root_reserved_blocks,
-					free_sections(sbi),
-					prefree_segments(sbi));
+				// f2fs_info(sbi,
+				// 	"[%s:%d] logical space running out: valid %u (pending %u), user %u, threshold %u (margin %u), over %lld, bfree %lld, bavail %llu,cur_rsv %u, unusable %u, root_rsv %u, free_secs %u, prefree_segs %u",
+				// 	__func__, __LINE__,
+				// 	(unsigned int)valid_blocks,
+				// 	(unsigned int)pending_blocks,
+				// 	(unsigned int)user_block_count,
+				// 	(unsigned int)hotness_threshold,
+				// 	(unsigned int)hotness_margin,
+				// 	(long long)((long long)valid_blocks - (long long)hotness_threshold),
+				// 	(long long)bfree,
+				// 	(unsigned long long)bavail,
+				// 	(unsigned int)current_reserved_blocks,
+				// 	(unsigned int)unusable_blocks,
+				// 	(unsigned int)root_reserved_blocks,
+				// 	free_sections(sbi),
+				// 	prefree_segments(sbi));
 			}
 			return true;
 		}
