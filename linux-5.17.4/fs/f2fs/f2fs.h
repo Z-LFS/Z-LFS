@@ -44,8 +44,10 @@ enum meta_type{
 };
 #endif
 
-// 关闭了
-//#define CONFIG_F2FS_CHECK_FS
+
+#if HOTNESS
+#define CP_NONBLOCK        (1 << 8)
+#endif
 
 struct pagevec;
 

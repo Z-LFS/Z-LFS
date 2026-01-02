@@ -517,9 +517,9 @@ void f2fs_balance_fs(struct f2fs_sb_info *sbi, bool need)
 	 * dir/node pages without enough free segments.
 	 */
 	if (has_not_enough_free_secs(sbi, 0, 0)) {
-		int ret;
 		if (test_opt(sbi, GC_MERGE) && sbi->gc_thread &&
 					sbi->gc_thread->f2fs_gc_task) {
+			f2fs_info(sbi, "[%s:%d]is here locked gc thread?", __func__, __LINE__);
 			DEFINE_WAIT(wait);
 
 			prepare_to_wait(&sbi->gc_thread->fggc_wq, &wait,
@@ -528,12 +528,16 @@ void f2fs_balance_fs(struct f2fs_sb_info *sbi, bool need)
 			io_schedule();
 			finish_wait(&sbi->gc_thread->fggc_wq, &wait);
 		} else {
+			f2fs_info(sbi, "[%s:%d]prepared gc?", __func__, __LINE__);
 			down_write(&sbi->gc_lock);
-			ret = f2fs_gc(sbi, false, false, false, NULL_SEGNO);
-			// if (ret == 0 && printk_ratelimit()) {
-        	// 	f2fs_info(sbi, "[%s,%d]:f2fs_gc called but freed 0 segments! free_secs=%d",
-			// 		__func__, __LINE__, free_sections(sbi));
-    		// }
+			f2fs_info(sbi, "[%s:%d]get gc_lock", __func__, __LINE__);
+#if HOTNESS			
+			f2fs_gc(sbi, true, false, false, NULL_SEGNO);
+			f2fs_info(sbi, "[%s:%d]done gc hotness over", __func__, __LINE__);
+#else
+			f2fs_gc(sbi, false, false, false, NULL_SEGNO);
+#endif
+			// up_write(&sbi->gc_lock);
 		}
 	}
 }
@@ -559,6 +563,14 @@ static inline bool excess_dirty_threshold(struct f2fs_sb_info *sbi)
 
 void f2fs_balance_fs_bg(struct f2fs_sb_info *sbi, bool from_bg)
 {
+// #if HOTNESS
+// 	struct writeback_control wbc = {
+// 		.sync_mode = WB_SYNC_ALL,
+// 		.nr_to_write = LONG_MAX,
+// 		.for_reclaim = 0,
+// 	};
+// #endif
+
 	if (unlikely(is_sbi_flag_set(sbi, SBI_POR_DOING)))
 		return;
 
@@ -576,8 +588,18 @@ void f2fs_balance_fs_bg(struct f2fs_sb_info *sbi, bool from_bg)
 		f2fs_build_free_nids(sbi, false, false);
 
 	if (excess_dirty_nats(sbi) || excess_dirty_threshold(sbi) ||
-		excess_prefree_segs(sbi) || !f2fs_space_for_roll_forward(sbi))
+		excess_prefree_segs(sbi) || !f2fs_space_for_roll_forward(sbi)) {
+		f2fs_info(sbi, "[%s:%d]excess dirty nats, %d", 
+			__func__, __LINE__, excess_dirty_nats(sbi));
+		f2fs_info(sbi, "[%s:%d]excess dirty threshold, %d", 
+			__func__, __LINE__, excess_dirty_threshold(sbi));
+		f2fs_info(sbi, "[%s:%d]excess prefree segs, %d", 
+			__func__, __LINE__, excess_prefree_segs(sbi));
+		f2fs_info(sbi, "[%s:%d]no space for roll forward, %d", 
+			__func__, __LINE__, !f2fs_space_for_roll_forward(sbi));
+		
 		goto do_sync;
+	}
 
 	/* there is background inflight IO or foreground operation recently */
 	if (is_inflight_io(sbi, REQ_TIME) ||
@@ -605,7 +627,22 @@ do_sync:
 
 		mutex_unlock(&sbi->flush_lock);
 	}
+// #if HOTNESS
+// 	f2fs_info(sbi, "[%s:%d]before f2fs_sync_node_pages", __func__, __LINE__);
+// 	f2fs_sync_node_pages(sbi, &wbc, false, FS_CP_NODE_IO);
+// 	f2fs_info(sbi, "[%s:%d]after f2fs_sync_node_pages", __func__, __LINE__);
+// 	{
+// 		struct cp_control cpc;
+// 		cpc.reason = __get_cp_reason(sbi) | CP_NONBLOCK;
+// 		cpc.trim_start = 0;
+// 		cpc.trim_end = 0;
+// 		cpc.trim_minlen = 0;
+// 		f2fs_write_checkpoint(sbi, &cpc);
+// 	}
+// #else
+	// f2fs_sync_fs(sbi->sb, true);
 	f2fs_sync_fs(sbi->sb, true);
+// #endif
 	stat_inc_bg_cp_count(sbi->stat_info);
 }
 
@@ -2875,12 +2912,13 @@ static void reset_curseg(struct f2fs_sb_info *sbi, int type, int modified)
 
 	if (GET_ZONE_FROM_SEG(sbi, curseg->segno) != curseg->zone && 
 			(type == CURSEG_COLD_DATA || type == CURSEG_WARM_DATA) && curseg->zone != 0) {
+
 		
+
 		struct zone_fifo_entry *entry = kmalloc(sizeof(*entry), GFP_NOFS);
 		if (entry) {
-			// f2fs_info(sbi, "[%s,%d] zone changed: segno=%u, old_zone=%u, new_zone=%u, type=%d",
-			// 		__func__, __LINE__, 
-			// 		curseg->segno, curseg->zone, GET_ZONE_FROM_SEG(sbi, curseg->segno), type);
+			printk(KERN_INFO "zone changed: segno=%u, old_zone=%u, new_zone=%u, type=%d\n",
+           		curseg->segno, curseg->zone, GET_ZONE_FROM_SEG(sbi, curseg->segno), type);
 			entry->zone_id = curseg->zone;
 			spin_lock(&sm_i->zone_fifo_lock);
 			list_add_tail(&entry->list, &sm_i->zone_fifo_list);
@@ -7250,7 +7288,7 @@ int f2fs_build_segment_manager(struct f2fs_sb_info *sbi)
 	/* init sm info */
 	sbi->sm_info = sm_info;
 #if HOTNESS
-		// init zone fifo list used by hotness-aware GC
+		//init every curzone_fifo_list
 		INIT_LIST_HEAD(&sm_info->zone_fifo_list);
 		spin_lock_init(&sm_info->zone_fifo_lock);
 #endif
@@ -7288,7 +7326,6 @@ int f2fs_build_segment_manager(struct f2fs_sb_info *sbi)
 #endif //DELAYED_MERGE
 
 #if DELAYED_MERGE
-	init_rwsem(&sm_info->sit_ltree_slock);
 	init_rwsem(&sm_info->ssa_ltree_slock);
 #endif
 #endif //META_FOR_ZNS

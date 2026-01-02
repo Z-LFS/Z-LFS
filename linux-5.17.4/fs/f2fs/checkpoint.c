@@ -1386,13 +1386,21 @@ static bool __need_flush_quota(struct f2fs_sb_info *sbi)
 /*
  * Freeze all the FS-operations for checkpoint.
  */
+#if HOTNESS
+static int block_operations(struct f2fs_sb_info *sbi, struct cp_control *cpc)
+#else
 static int block_operations(struct f2fs_sb_info *sbi)
+#endif
 {
 	struct writeback_control wbc = {
 		.sync_mode = WB_SYNC_ALL,
 		.nr_to_write = LONG_MAX,
 		.for_reclaim = 0,
 	};
+// #if HOTNESS
+// 	if (cpc->reason & CP_NONBLOCK)
+// 		wbc.sync_mode = WB_SYNC_NONE;
+// #endif
 	int err = 0, cnt = 0;
 
 	/*
@@ -1401,7 +1409,18 @@ static int block_operations(struct f2fs_sb_info *sbi)
 	f2fs_flush_inline_data(sbi);
 
 retry_flush_quotas:
+// #if HOTNESS
+// 	if (cpc->reason & CP_NONBLOCK) {
+// 		if (!down_write_trylock(&sbi->cp_rwsem))
+// 			return -EAGAIN;
+// 	} else {
+// 		f2fs_lock_all(sbi);
+// 	}
+// #else
+	f2fs_info(sbi, "[%s:%d] Lock all the FS operations", __func__, __LINE__);
 	f2fs_lock_all(sbi);
+// #endif
+
 	if (__need_flush_quota(sbi)) {
 		int locked;
 
@@ -1410,6 +1429,7 @@ retry_flush_quotas:
 			set_sbi_flag(sbi, SBI_QUOTA_NEED_FLUSH);
 			goto retry_flush_dents;
 		}
+		f2fs_info(sbi, "[%s:%d] Unlock all the FS operations 1", __func__, __LINE__);
 		f2fs_unlock_all(sbi);
 
 		/* only failed during mount/umount/freeze/quotactl */
@@ -1424,6 +1444,7 @@ retry_flush_quotas:
 retry_flush_dents:
 	/* write all the dirty dentry pages */
 	if (get_pages(sbi, F2FS_DIRTY_DENTS)) {
+		f2fs_info(sbi, "[%s:%d] Unlock all the FS operations dents", __func__, __LINE__);
 		f2fs_unlock_all(sbi);
 		err = f2fs_sync_dirty_inodes(sbi, DIR_INODE);
 		if (err)
@@ -1440,6 +1461,7 @@ retry_flush_dents:
 
 	if (get_pages(sbi, F2FS_DIRTY_IMETA)) {
 		up_write(&sbi->node_change);
+		f2fs_info(sbi, "[%s:%d] Unlock all the FS operations node_change", __func__, __LINE__);
 		f2fs_unlock_all(sbi);
 		err = f2fs_sync_inode_meta(sbi);
 		if (err)
@@ -1457,6 +1479,7 @@ retry_flush_nodes:
 		atomic_dec(&sbi->wb_sync_req[NODE]);
 		if (err) {
 			up_write(&sbi->node_change);
+			f2fs_info(sbi, "[%s:%d] Unlock all the FS operations nodes", __func__, __LINE__);
 			f2fs_unlock_all(sbi);
 			return err;
 		}
@@ -2116,8 +2139,17 @@ int f2fs_write_checkpoint(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 	}
 #endif
 
+#if HOTNESS
+	err = block_operations(sbi, cpc);
+#else
 	err = block_operations(sbi);
+#endif
 //	printk("(%s:%d) block_ops end", __func__, __LINE__);
+#if HOTNESS
+	if (err == -EAGAIN) {
+		goto out;
+	}
+#endif
 	if (err)
 		goto out;
 
@@ -2310,7 +2342,9 @@ static int __write_checkpoint_sync(struct f2fs_sb_info *sbi)
 	int err;
 
 	down_write(&sbi->gc_lock);
+	f2fs_info(sbi , "[%s:%d]write checkpoint sync get gc_lock", __func__, __LINE__);
 	err = f2fs_write_checkpoint(sbi, &cpc);
+	f2fs_info(sbi , "[%s:%d]write checkpoint sync release gc_lock", __func__, __LINE__);
 	up_write(&sbi->gc_lock);
 
 	return err;
@@ -2329,7 +2363,9 @@ static void __checkpoint_and_complete_reqs(struct f2fs_sb_info *sbi)
 		return;
 	dispatch_list = llist_reverse_order(dispatch_list);
 
+	f2fs_info(sbi , "[%s:%d]checkpoint thread __checkpoint_and_complete_reqs", __func__, __LINE__);
 	ret = __write_checkpoint_sync(sbi);
+	f2fs_info(sbi , "[%s:%d]checkpoint thread __checkpoint_and_complete_reqs done", __func__, __LINE__);
 	atomic_inc(&cprc->issued_ckpt);
 
 	llist_for_each_entry_safe(req, next, dispatch_list, llnode) {
@@ -2359,8 +2395,10 @@ repeat:
 	if (kthread_should_stop())
 		return 0;
 
-	if (!llist_empty(&cprc->issue_list))
+	if (!llist_empty(&cprc->issue_list)) {
+		f2fs_info(sbi , "[%s:%d]checkpoint thread start to handle checkpoint", __func__, __LINE__);
 		__checkpoint_and_complete_reqs(sbi);
+	}
 
 	wait_event_interruptible(*q,
 		kthread_should_stop() || !llist_empty(&cprc->issue_list));
@@ -2389,16 +2427,23 @@ static void init_ckpt_req(struct ckpt_req *req)
 	req->queue_time = ktime_get();
 }
 
+/* 根据当前 checkpoint 原因和挂载选项
+   决定是否立即同步执行checkpoint，
+   还是加入请求队列等待 checkpoint 线程处理，
+   并在必要时等待结果
+*/
 int f2fs_issue_checkpoint(struct f2fs_sb_info *sbi)
 {
+	/* cp请求控制器 */
 	struct ckpt_req_control *cprc = &sbi->cprc_info;
 	struct ckpt_req req;
-	struct cp_control cpc;
+	struct cp_control cpc; /* cp reason */
 
 	cpc.reason = __get_cp_reason(sbi);
 	if (!test_opt(sbi, MERGE_CHECKPOINT) || cpc.reason != CP_SYNC) {
 		int ret;
-
+		f2fs_info(sbi , "[%s:%d]issue checkpoint sync reason or not merge_checkpoint:%u",
+				__func__, __LINE__, cpc.reason);
 		down_write(&sbi->gc_lock);
 		ret = f2fs_write_checkpoint(sbi, &cpc);
 		up_write(&sbi->gc_lock);
@@ -2409,8 +2454,9 @@ int f2fs_issue_checkpoint(struct f2fs_sb_info *sbi)
 	if (!cprc->f2fs_issue_ckpt)
 		return __write_checkpoint_sync(sbi);
 
+	/* 初始化cp请求 */
 	init_ckpt_req(&req);
-
+	/* 请求入队 */
 	llist_add(&req.llnode, &cprc->issue_list);
 	atomic_inc(&cprc->queued_ckpt);
 
@@ -2420,7 +2466,8 @@ int f2fs_issue_checkpoint(struct f2fs_sb_info *sbi)
 	 * see more details in comments of waitqueue_active().
 	 */
 	smp_mb();
-
+	/* 唤醒checkpoint线程处理 issue_list 中的请求 */
+	f2fs_info(sbi , "[%s:%d]wake up checkpoint thread to handle checkpoint", __func__, __LINE__);
 	if (waitqueue_active(&cprc->ckpt_wait_queue))
 		wake_up(&cprc->ckpt_wait_queue);
 

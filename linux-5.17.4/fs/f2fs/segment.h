@@ -691,13 +691,14 @@ static inline bool has_not_enough_free_secs(struct f2fs_sb_info *sbi,
 			valid_user_blocks -= sbi->cold_file_pending_blocks;
 		else
 			valid_user_blocks = 0;
-		// if (sbi->cold_file_pending_blocks > 0) {
-		// 	f2fs_info(sbi, "[%s:%d] cold_file_pending_blocks=%u",
-		// 		__func__, __LINE__,
-		// 		(unsigned int)sbi->cold_file_pending_blocks);
-		// }
+		if (freed > 0) {
+			f2fs_info(sbi, "[%s:%d] freed=%d",
+				__func__, __LINE__,
+				freed);
+		}
 
-		if (valid_user_blocks > sbi->user_block_count - (sbi->user_block_count >> 5)) {
+		if (valid_user_blocks - (freed * BLKS_PER_SEC(sbi)) > 
+				sbi->user_block_count - (sbi->user_block_count >> 3)) {
 			if (printk_ratelimit()) {
 				block_t user_block_count;
 				block_t valid_blocks;
@@ -740,22 +741,24 @@ static inline bool has_not_enough_free_secs(struct f2fs_sb_info *sbi,
 				else
 					bavail = 0;
 
-				// f2fs_info(sbi,
-				// 	"[%s:%d] logical space running out: valid %u (pending %u), user %u, threshold %u (margin %u), over %lld, bfree %lld, bavail %llu,cur_rsv %u, unusable %u, root_rsv %u, free_secs %u, prefree_segs %u",
-				// 	__func__, __LINE__,
-				// 	(unsigned int)valid_blocks,
-				// 	(unsigned int)pending_blocks,
-				// 	(unsigned int)user_block_count,
-				// 	(unsigned int)hotness_threshold,
-				// 	(unsigned int)hotness_margin,
-				// 	(long long)((long long)valid_blocks - (long long)hotness_threshold),
-				// 	(long long)bfree,
-				// 	(unsigned long long)bavail,
-				// 	(unsigned int)current_reserved_blocks,
-				// 	(unsigned int)unusable_blocks,
-				// 	(unsigned int)root_reserved_blocks,
-				// 	free_sections(sbi),
-				// 	prefree_segments(sbi));
+				f2fs_info(sbi,
+					"[%s:%d] logical space running out: valid %u (pending %u), user %u, threshold %u (margin %u), over %lld, freed %u, blks_per_sec %u, bfree %lld, bavail %llu,cur_rsv %u, unusable %u, root_rsv %u, free_secs %u, prefree_segs %u",
+					__func__, __LINE__,
+					(unsigned int)valid_blocks,
+					(unsigned int)pending_blocks,
+					(unsigned int)user_block_count,
+					(unsigned int)hotness_threshold,
+					(unsigned int)hotness_margin,
+					(long long)((long long)valid_blocks - (long long)hotness_threshold),
+					(unsigned int)freed,
+					(unsigned int)BLKS_PER_SEC(sbi),
+					(long long)bfree,
+					(unsigned long long)bavail,
+					(unsigned int)current_reserved_blocks,
+					(unsigned int)unusable_blocks,
+					(unsigned int)root_reserved_blocks,
+					free_sections(sbi),
+					prefree_segments(sbi));
 			}
 			return true;
 		}

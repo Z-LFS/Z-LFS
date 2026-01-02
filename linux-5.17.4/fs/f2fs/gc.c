@@ -685,7 +685,7 @@ static int get_victim_by_default(struct f2fs_sb_info *sbi,
   int free_cnt = SM_I(sbi)->free_sz_cnt[0];
 #endif
 
-#if HOTNESS
+#if DEBUG_GC
 	// f2fs_info(sbi, "DEBUG_GC: get_victim_by_default called. gc_type=%d, alloc_mode=%d\n", gc_type, alloc_mode);
 #endif
 
@@ -725,7 +725,7 @@ retry:
 	if (p.max_search == 0)
 		goto out;
 
-#if HOTNESS
+#if DEBUG_GC
     // f2fs_info(sbi, "DEBUG_GC: is_large_section=%d, alloc_mode=%d, list_empty=%d", 
     //     __is_large_section(sbi), p.alloc_mode, list_empty(&sm_info->zone_fifo_list));
 #endif
@@ -747,11 +747,15 @@ retry:
 
 			p.min_segno = start_segno;
 			*result = p.min_segno;
-			// f2fs_info(sbi, "[%s,%d]:zone %u finished, del from list", __func__, __LINE__, secno);
+#if DEBUG_GC
+			f2fs_info(sbi, "[%s,%d]:zone %u finished, del from list", __func__, __LINE__, secno);
+#endif
 			goto got_result;
 		}
 		spin_unlock(&sm_info->zone_fifo_lock);
-		// f2fs_info(sbi, "[%s,%d]:zone fifo list is empty\n", __func__, __LINE__);
+#if DEBUG_GC
+		f2fs_info(sbi, "[%s,%d]:zone fifo list is empty\n", __func__, __LINE__);
+#endif
 		ret = -ENODATA;
 		goto out;
 #else
@@ -1167,8 +1171,8 @@ static bool is_alive(struct f2fs_sb_info *sbi, struct f2fs_summary *sum,
   }
 */
 //  if (dbg) {
-    printk("(%s:%d)segno:%u,addr1:%u,addr2:%u,nid:%u,ofs:%u,node:%u",
-      __func__, __LINE__, GET_SEGNO(sbi, blkaddr), source_blkaddr, blkaddr, nid, ofs_in_node, dni->blk_addr);
+    // printk("(%s:%d)segno:%u,addr1:%u,addr2:%u,nid:%u,ofs:%u,node:%u",
+    //   __func__, __LINE__, GET_SEGNO(sbi, blkaddr), source_blkaddr, blkaddr, nid, ofs_in_node, dni->blk_addr);
 //  }
 #endif
 
@@ -1569,7 +1573,11 @@ out:
  */
 static int gc_data_segment(struct f2fs_sb_info *sbi, struct f2fs_summary *sum,
 		struct gc_inode_list *gc_list, unsigned int segno, int gc_type,
+#if HOTNESS
+		bool force_migrate, bool *all_cold)
+#else
 		bool force_migrate)
+#endif
 {
 	struct super_block *sb = sbi->sb;
 	struct f2fs_summary *entry;
@@ -1578,6 +1586,11 @@ static int gc_data_segment(struct f2fs_sb_info *sbi, struct f2fs_summary *sum,
 	int phase = 0;
 	int submitted = 0;
 	unsigned int usable_blks_in_seg = f2fs_usable_blks_in_seg(sbi, segno);
+
+#if HOTNESS
+	if (all_cold)
+		*all_cold = true;
+#endif
 
   	int dbg = 1;
 	start_addr = START_BLOCK(sbi, segno);
@@ -1685,9 +1698,9 @@ next_step:
 //        is_alive_err = 1;
   #if DEBUG_GC
 
-        if(dbg)
-          printk("(%s:%d) not alive: segno:%u, start_addr:%u, off:%u",
-            __func__, __LINE__, segno, start_addr, off);
+        // if(dbg)
+        //   printk("(%s:%d) not alive: segno:%u, start_addr:%u, off:%u",
+        //     __func__, __LINE__, segno, start_addr, off);
 //        dbg = 0;
 
         //avoid_secno = GET_SEC_FROM_SEG(sbi, segno);
@@ -1795,6 +1808,8 @@ next_step:
 #if HOTNESS
 			/* if file is hot,move data page */
 			if (atomic_read(&fi->i_access_count) > HOT_FILE_ACCESSED_THRESHOLD) {
+				if (all_cold && *all_cold)
+					*all_cold = false;
 				// f2fs_info(sbi, "DEBUG_GC: Hot file ino %lu, access %d", inode->i_ino, atomic_read(&fi->i_access_count));
 				if (gc_type == BG_GC && has_not_enough_free_secs(sbi, 0, 0)) {
 					if (locked) {
@@ -1910,10 +1925,6 @@ static int do_garbage_collect(struct f2fs_sb_info *sbi,
   
   ktime_get_raw_ts64(&ts_total[0]);
 
-#if  DEBUG_GC
-  printk("(%s:%d) gc start", __func__, __LINE__);
-#endif
-
 	if (__is_large_section(sbi))
 		end_segno = rounddown(end_segno, sbi->segs_per_sec);
 
@@ -2026,6 +2037,9 @@ Not implemented
 		 *                                  - lock_page(sum_page)
 		 */
     ktime_get_raw_ts64(&ts_dogc[0]);
+#if HOTNESS
+		bool segment_all_cold = false;
+#endif
 		if (type == SUM_TYPE_NODE) {
 #if DEBUG_GC
       if (gc_type == FG_GC)
@@ -2037,28 +2051,43 @@ Not implemented
     }
 		else {
 #if DEBUG_GC
-      if (gc_type == FG_GC)
-        printk("(%s:%d) data gc vblock count: %u",
-          __func__, __LINE__, get_valid_blocks(sbi, segno, false));
+    //   if (gc_type == FG_GC)
+    //     printk("(%s:%d) data gc vblock count: %u",
+    //       __func__, __LINE__, get_valid_blocks(sbi, segno, false));
 #endif
+#if HOTNESS
 			submitted += gc_data_segment(sbi, sum->entries, gc_list,
 							segno, gc_type,
-							force_migrate);
+							force_migrate, &segment_all_cold);
+#else
+			submitted += gc_data_segment(sbi, sum->entries, gc_list,
+							segno, gc_type,
+							force_migrate, NULL);
+#endif
     }
     ktime_get_raw_ts64(&ts_dogc[1]);
     calclock(ts_dogc, &dogcTime, &dogcCnt);
-#if DEBUG_GC
-    if (gc_type == FG_GC)
-      printk("(%s:%d) vblock count: %u, submitted %d", __func__, __LINE__, get_valid_blocks(sbi, segno, false), submitted);
+#if HOTNESS
+    // if (gc_type == FG_GC)
+    //   f2fs_info(sbi, "(%s:%d) valid block count: %u, submitted %d", 
+	// 	__func__, __LINE__, 
+	// 	get_valid_blocks(sbi, segno, false), 
+	// 	submitted);
 #endif
 		stat_inc_seg_count(sbi, type, gc_type);
 		sbi->gc_reclaimed_segs[sbi->gc_mode]++;
 		migrated++;
 
 freed:
+#if HOTNESS
+		if (gc_type == FG_GC &&
+				(get_valid_blocks(sbi, segno, false) == 0 || segment_all_cold))
+			seg_freed++;
+#else
 		if (gc_type == FG_GC &&
 				get_valid_blocks(sbi, segno, false) == 0)
 			seg_freed++;
+#endif
 
 		if (__is_large_section(sbi) && segno + 1 < end_segno)
 			sbi->next_victim_seg[gc_type] = segno + 1;
@@ -2085,11 +2114,7 @@ skip:
   calclock(ts_total, &gcTotalTime, &gcTotalCnt);
 	f2fs_info(sbi, "[%s:%d]gc time: %llu %llu", __func__, __LINE__, gcTotalTime, dogcTime);
 
-#if HOTNESS
-	if (gc_type == FG_GC && seg_freed == 0 && submitted > 0) {
-		seg_freed = f2fs_usable_segs_in_sec(sbi, start_segno);
-	}
-#endif
+
 
 	return seg_freed;
 }
@@ -2114,7 +2139,7 @@ int f2fs_gc(struct f2fs_sb_info *sbi, bool sync,
   unsigned long long time[6] = {0, };
   unsigned long long cnt[6] = {0, };
 #if DEBUG_GC
-//   printk("(%s:%d) f2fs_gc start", __func__, __LINE__);
+    f2fs_info(sbi, "\n[%s:%d] f2fs_gc start", __func__, __LINE__);
 #endif
 	trace_f2fs_gc_begin(sbi->sb, sync, background,
 				get_pages(sbi, F2FS_DIRTY_NODES),
@@ -2138,6 +2163,9 @@ gc_more:
 		ret = -EIO;
 		goto stop;
 	}
+#if DEBUG_GC
+	f2fs_info(sbi, "[%s:%d] gc_more: segno=%u, gc_type=%d", __func__, __LINE__, segno, gc_type);
+#endif
 
 	if (gc_type == BG_GC && has_not_enough_free_secs(sbi, 0, 0)) {
 		/*
@@ -2160,6 +2188,7 @@ gc_more:
 		ret = -EINVAL;
 		goto stop;
 	}
+	f2fs_info(sbi, "[%s:%d] calling __get_victim, gc_type=%d", __func__, __LINE__, gc_type);
   ktime_get_raw_ts64(&ts_f2fs_gc[0][0]);
 	ret = __get_victim(sbi, &segno, gc_type);
   ktime_get_raw_ts64(&ts_f2fs_gc[0][1]);
@@ -2171,23 +2200,31 @@ gc_more:
 // 		}
 // #endif
 	if (ret) {
+		f2fs_info(sbi, "[%s:%d] __get_victim failed, ret=%d", __func__, __LINE__, ret);
 		goto stop;
 	}
 
+	f2fs_info(sbi, "[%s:%d] calling do_garbage_collect, segno=%u", __func__, __LINE__, segno);
   ktime_get_raw_ts64(&ts_f2fs_gc[1][0]);
 	seg_freed = do_garbage_collect(sbi, segno, &gc_list, gc_type, force);
   ktime_get_raw_ts64(&ts_f2fs_gc[1][1]);
   calclock(ts_f2fs_gc[1], &time[1], &cnt[1]);
+	f2fs_info(sbi, "[%s:%d] do_garbage_collect returned, seg_freed=%d", __func__, __LINE__, seg_freed);
 
 #if HOTNESS
 	// f2fs_info(sbi, "[%s,%d]:gc segno:%u, seg_freed:%d, free secs:%u",
 	// 	__func__, __LINE__, segno, seg_freed, free_sections(sbi));
-	if (gc_type == FG_GC && !is_sbi_flag_set(sbi, SBI_CP_DISABLED)) {
-		// f2fs_info(sbi, "[%s:%d]:write checkpoint in fg gc", __func__, __LINE__);
-		ret = f2fs_write_checkpoint(sbi, &cpc);
-		if (ret)
-			goto stop;
-	}
+	// Removed redundant and deadlock-prone checkpoint here. 
+	// We rely on the native check below (has_not_enough_free_secs) to trigger CP if needed.
+#endif
+
+#if DEBUG_GC
+	f2fs_info(sbi, "[%s:%d] gc_type:%d, seg_freed:%d, usable:%u, free_secs:%u",
+		__func__, __LINE__, 
+		gc_type,
+		seg_freed, 
+		f2fs_usable_segs_in_sec(sbi, segno),
+		free_sections(sbi));
 #endif
 
 	if (gc_type == FG_GC &&
@@ -2207,8 +2244,20 @@ gc_more:
 	if (gc_type == FG_GC)
 		sbi->cur_victim_sec = NULL_SEGNO;
 
+#if HOTNESS
+	if (sync && seg_freed > 0)
+		goto stop;
+#else
 	if (sync)
 		goto stop;
+#endif
+
+#if DEBUG_GC
+	if (sec_freed) {
+		f2fs_info(sbi, "[%s:%d]: sec_freed:%d, free secs:%u",
+			__func__, __LINE__, sec_freed, free_sections(sbi));
+	}
+#endif
 
 	if (has_not_enough_free_secs(sbi, sec_freed, 0)) {
 		if (skipped_round <= MAX_SKIP_GC_COUNT ||
@@ -2230,8 +2279,43 @@ gc_more:
 #endif
 			goto gc_more;
 		}
-		if (gc_type == FG_GC && !is_sbi_flag_set(sbi, SBI_CP_DISABLED))
+		if (gc_type == FG_GC && !is_sbi_flag_set(sbi, SBI_CP_DISABLED)) {
+#if HOTNESS
+			/* 
+			 * AB-BA Deadlock avoidance:
+			 * kworker holds PageLock -> waits for gc_lock (balance_fs)
+			 * gc_thread holds gc_lock -> waits for PageLock (write_checkpoint)
+			 * Solution: Drop gc_lock temporarily during checkpoint in GC thread.
+			 */
+			if (sbi->gc_thread && sbi->gc_thread->f2fs_gc_task == current) {
+				up_write(&sbi->gc_lock);
+#if DEBUG_GC
+				f2fs_info(sbi, "[%s:%d]: do checkpoint from gc_thread",
+					__func__, __LINE__);
+#endif
+				ret = f2fs_write_checkpoint(sbi, &cpc);
+#if DEBUG_GC
+				f2fs_info(sbi, "[%s:%d]: finish checkpoint from gc_thread",
+					__func__, __LINE__);
+#endif
+				down_write(&sbi->gc_lock);
+			} else {
+				up_write(&sbi->gc_lock);
+#if DEBUG_GC
+				f2fs_info(sbi, "[%s:%d]: do checkpoint from gc_thread",
+					__func__, __LINE__);
+#endif
+				ret = f2fs_write_checkpoint(sbi, &cpc);
+#if DEBUG_GC
+				f2fs_info(sbi, "[%s:%d]: finish checkpoint from gc_thread",
+					__func__, __LINE__);
+#endif
+				down_write(&sbi->gc_lock);
+			}
+#else
 			ret = f2fs_write_checkpoint(sbi, &cpc);
+#endif
+		}
 	}
 stop:
 	SIT_I(sbi)->last_victim[ALLOC_NEXT] = 0;
@@ -2245,12 +2329,15 @@ stop:
 				free_segments(sbi),
 				reserved_segments(sbi),
 				prefree_segments(sbi));
-
+#if DEBUG_GC
+	f2fs_info(sbi, "[%s:%d] f2fs_gc stop, release lock", __func__, __LINE__);
+#endif
 	up_write(&sbi->gc_lock);
 
 	put_gc_inode(&gc_list);
 #if DEBUG_GC
-//   printk("(%s:%d) f2fs_gc end, sec_freed %d", __func__, __LINE__, sec_freed);
+  	f2fs_info(sbi, "[%s:%d] f2fs_gc end, sec_freed = %d,ret = %d", 
+		__func__, __LINE__, sec_freed, ret);
 #endif
   ktime_get_raw_ts64(&ts_f2fs_gc[2][1]);
   calclock(ts_f2fs_gc[2], &time[2], &cnt[2]);
@@ -2258,6 +2345,7 @@ stop:
   //  printk("%llu %llu %llu %llu %llu %llu", time[0], cnt[0], time[1], cnt[1], time[2], cnt[2]);
 	if (sync && !ret)
 		ret = sec_freed ? 0 : -EAGAIN;
+
 	return ret;
 }
 

@@ -152,7 +152,7 @@
   #define META_FOR_ZNS 1
 #endif
 
-#define DEBUG_GC 0
+#define DEBUG_GC 1
 
 #if META_FOR_ZNS
   //for evaluation - have to change META_LOG_STRIPE of mkfs
