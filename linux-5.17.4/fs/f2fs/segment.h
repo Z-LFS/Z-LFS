@@ -691,75 +691,70 @@ static inline bool has_not_enough_free_secs(struct f2fs_sb_info *sbi,
 			valid_user_blocks -= sbi->cold_file_pending_blocks;
 		else
 			valid_user_blocks = 0;
-		if (freed > 0) {
-			f2fs_info(sbi, "[%s:%d] freed=%d",
-				__func__, __LINE__,
-				freed);
-		}
 
 		if (valid_user_blocks - (freed * BLKS_PER_SEC(sbi)) > 
 				sbi->user_block_count - (sbi->user_block_count >> 3)) {
-			if (printk_ratelimit()) {
-				block_t user_block_count;
-				block_t valid_blocks;
-				block_t pending_blocks;
-				block_t hotness_margin;
-				block_t hotness_threshold;
-				block_t current_reserved_blocks;
-				block_t unusable_blocks;
-				long long bfree;
-				unsigned long long bavail;
-				u32 root_reserved_blocks = F2FS_OPTION(sbi).root_reserved_blocks;
+			// if (printk_ratelimit()) {
+			// 	block_t user_block_count;
+			// 	block_t valid_blocks;
+			// 	block_t pending_blocks;
+			// 	block_t hotness_margin;
+			// 	block_t hotness_threshold;
+			// 	block_t current_reserved_blocks;
+			// 	block_t unusable_blocks;
+			// 	long long bfree;
+			// 	unsigned long long bavail;
+			// 	u32 root_reserved_blocks = F2FS_OPTION(sbi).root_reserved_blocks;
 
-				spin_lock(&sbi->stat_lock);
-				user_block_count = sbi->user_block_count;
-				valid_blocks = sbi->total_valid_block_count;
-				current_reserved_blocks = sbi->current_reserved_blocks;
-				unusable_blocks = sbi->unusable_block_count;
-				spin_unlock(&sbi->stat_lock);
+			// 	spin_lock(&sbi->stat_lock);
+			// 	user_block_count = sbi->user_block_count;
+			// 	valid_blocks = sbi->total_valid_block_count;
+			// 	current_reserved_blocks = sbi->current_reserved_blocks;
+			// 	unusable_blocks = sbi->unusable_block_count;
+			// 	spin_unlock(&sbi->stat_lock);
 
-				pending_blocks = sbi->cold_file_pending_blocks;
-				if (valid_blocks > pending_blocks)
-					valid_blocks -= pending_blocks;
-				else
-					valid_blocks = 0;
+			// 	pending_blocks = sbi->cold_file_pending_blocks;
+			// 	if (valid_blocks > pending_blocks)
+			// 		valid_blocks -= pending_blocks;
+			// 	else
+			// 		valid_blocks = 0;
 
-				hotness_margin = user_block_count >> 5;
-				hotness_threshold = user_block_count - hotness_margin;
+			// 	hotness_margin = user_block_count >> 5;
+			// 	hotness_threshold = user_block_count - hotness_margin;
 
-				bfree = (long long)user_block_count - (long long)valid_blocks -
-					(long long)current_reserved_blocks;
-				if (bfree <= 0)
-					bfree = 0;
-				else if ((unsigned long long)bfree <= (unsigned long long)unusable_blocks)
-					bfree = 0;
-				else
-					bfree -= (long long)unusable_blocks;
+			// 	bfree = (long long)user_block_count - (long long)valid_blocks -
+			// 		(long long)current_reserved_blocks;
+			// 	if (bfree <= 0)
+			// 		bfree = 0;
+			// 	else if ((unsigned long long)bfree <= (unsigned long long)unusable_blocks)
+			// 		bfree = 0;
+			// 	else
+			// 		bfree -= (long long)unusable_blocks;
 
-				if ((unsigned long long)bfree > root_reserved_blocks)
-					bavail = (unsigned long long)bfree - root_reserved_blocks;
-				else
-					bavail = 0;
+			// 	if ((unsigned long long)bfree > root_reserved_blocks)
+			// 		bavail = (unsigned long long)bfree - root_reserved_blocks;
+			// 	else
+			// 		bavail = 0;
 
-				f2fs_info(sbi,
-					"[%s:%d] logical space running out: valid %u (pending %u), user %u, threshold %u (margin %u), over %lld, freed %u, blks_per_sec %u, bfree %lld, bavail %llu,cur_rsv %u, unusable %u, root_rsv %u, free_secs %u, prefree_segs %u",
-					__func__, __LINE__,
-					(unsigned int)valid_blocks,
-					(unsigned int)pending_blocks,
-					(unsigned int)user_block_count,
-					(unsigned int)hotness_threshold,
-					(unsigned int)hotness_margin,
-					(long long)((long long)valid_blocks - (long long)hotness_threshold),
-					(unsigned int)freed,
-					(unsigned int)BLKS_PER_SEC(sbi),
-					(long long)bfree,
-					(unsigned long long)bavail,
-					(unsigned int)current_reserved_blocks,
-					(unsigned int)unusable_blocks,
-					(unsigned int)root_reserved_blocks,
-					free_sections(sbi),
-					prefree_segments(sbi));
-			}
+			// 	f2fs_info(sbi,
+			// 		"[%s:%d] logical space running out: valid %u (pending %u), user %u, threshold %u (margin %u), over %lld, freed %u, blks_per_sec %u, bfree %lld, bavail %llu,cur_rsv %u, unusable %u, root_rsv %u, free_secs %u, prefree_segs %u",
+			// 		__func__, __LINE__,
+			// 		(unsigned int)valid_blocks,
+			// 		(unsigned int)pending_blocks,
+			// 		(unsigned int)user_block_count,
+			// 		(unsigned int)hotness_threshold,
+			// 		(unsigned int)hotness_margin,
+			// 		(long long)((long long)valid_blocks - (long long)hotness_threshold),
+			// 		(unsigned int)freed,
+			// 		(unsigned int)BLKS_PER_SEC(sbi),
+			// 		(long long)bfree,
+			// 		(unsigned long long)bavail,
+			// 		(unsigned int)current_reserved_blocks,
+			// 		(unsigned int)unusable_blocks,
+			// 		(unsigned int)root_reserved_blocks,
+			// 		free_sections(sbi),
+			// 		prefree_segments(sbi));
+			// }
 			return true;
 		}
 	
@@ -769,16 +764,16 @@ static inline bool has_not_enough_free_secs(struct f2fs_sb_info *sbi,
 #else
 	if (free_secs + freed == reserved_secs + needed && has_curseg_enough_space(sbi)) {
 #endif
-		f2fs_info(sbi, "[%s:%d] has_not_enough_free_secs: free_secs=%d, freed=%d, reserved_secs=%d, needed=%d, node_secs=%d, dent_secs=%d, imeta_secs=%d, curseg_enough=1, result=0\n",
-			__func__, __LINE__, free_secs, freed, reserved_secs, needed, node_secs, dent_secs, imeta_secs);
+		// f2fs_info(sbi, "[%s:%d] has_not_enough_free_secs: free_secs=%d, freed=%d, reserved_secs=%d, needed=%d, node_secs=%d, dent_secs=%d, imeta_secs=%d, curseg_enough=1, result=0\n",
+		// 	__func__, __LINE__, free_secs, freed, reserved_secs, needed, node_secs, dent_secs, imeta_secs);
 		return false;
 	}
 #if HOTNESS
 	result = (free_secs + freed) <= (node_secs + 2 * dent_secs + imeta_secs + reserved_secs + needed + 2);
 	if (result) {
-		f2fs_info(sbi, "[%s:%d] has_not_enough_free_secs: free_secs=%d, freed=%d,reserved_secs=%d, needed=%d, node_secs=%d, dent_secs=%d, imeta_secs=%d, curseg_enough=%d, result=%d\n",
-		__func__, __LINE__, free_secs, freed, reserved_secs, needed, node_secs, 
-		dent_secs, imeta_secs, has_curseg_enough_space(sbi) ? 1 : 0, result ? 1 : 0);
+		// f2fs_info(sbi, "[%s:%d] has_not_enough_free_secs: free_secs=%d, freed=%d,reserved_secs=%d, needed=%d, node_secs=%d, dent_secs=%d, imeta_secs=%d, curseg_enough=%d, result=%d\n",
+		// __func__, __LINE__, free_secs, freed, reserved_secs, needed, node_secs, 
+		// dent_secs, imeta_secs, has_curseg_enough_space(sbi) ? 1 : 0, result ? 1 : 0);
 	}
 #else
 	result = (free_secs + freed) <= (node_secs + 2 * dent_secs + imeta_secs + reserved_secs + needed);

@@ -520,7 +520,7 @@ void f2fs_balance_fs(struct f2fs_sb_info *sbi, bool need)
 		if (test_opt(sbi, GC_MERGE) && sbi->gc_thread &&
 					sbi->gc_thread->f2fs_gc_task) {
 			DEFINE_WAIT(wait);
-			f2fs_info(sbi, "[%s:%d]is here locked gc thread?", __func__, __LINE__);
+			// f2fs_info(sbi, "[%s:%d]is here locked gc thread?", __func__, __LINE__);
 
 			prepare_to_wait(&sbi->gc_thread->fggc_wq, &wait,
 						TASK_UNINTERRUPTIBLE);
@@ -528,12 +528,12 @@ void f2fs_balance_fs(struct f2fs_sb_info *sbi, bool need)
 			io_schedule();
 			finish_wait(&sbi->gc_thread->fggc_wq, &wait);
 		} else {
-			f2fs_info(sbi, "[%s:%d]prepared gc?", __func__, __LINE__);
+			// f2fs_info(sbi, "[%s:%d]prepared gc?", __func__, __LINE__);
 			down_write(&sbi->gc_lock);
-			f2fs_info(sbi, "[%s:%d]get gc_lock", __func__, __LINE__);
+			// f2fs_info(sbi, "[%s:%d]get gc_lock", __func__, __LINE__);
 #if HOTNESS			
 			f2fs_gc(sbi, true, false, false, NULL_SEGNO);
-			f2fs_info(sbi, "[%s:%d]done gc hotness over", __func__, __LINE__);
+			// f2fs_info(sbi, "[%s:%d]done gc hotness over", __func__, __LINE__);
 #else
 			f2fs_gc(sbi, false, false, false, NULL_SEGNO);
 #endif
@@ -589,14 +589,6 @@ void f2fs_balance_fs_bg(struct f2fs_sb_info *sbi, bool from_bg)
 
 	if (excess_dirty_nats(sbi) || excess_dirty_threshold(sbi) ||
 		excess_prefree_segs(sbi) || !f2fs_space_for_roll_forward(sbi)) {
-		f2fs_info(sbi, "[%s:%d]excess dirty nats, %d", 
-			__func__, __LINE__, excess_dirty_nats(sbi));
-		f2fs_info(sbi, "[%s:%d]excess dirty threshold, %d", 
-			__func__, __LINE__, excess_dirty_threshold(sbi));
-		f2fs_info(sbi, "[%s:%d]excess prefree segs, %d", 
-			__func__, __LINE__, excess_prefree_segs(sbi));
-		f2fs_info(sbi, "[%s:%d]no space for roll forward, %d", 
-			__func__, __LINE__, !f2fs_space_for_roll_forward(sbi));
 		
 		goto do_sync;
 	}
@@ -2917,8 +2909,14 @@ static void reset_curseg(struct f2fs_sb_info *sbi, int type, int modified)
 
 		struct zone_fifo_entry *entry = kmalloc(sizeof(*entry), GFP_NOFS);
 		if (entry) {
-			printk(KERN_INFO "zone changed: segno=%u, old_zone=%u, new_zone=%u, type=%d\n",
-           		curseg->segno, curseg->zone, GET_ZONE_FROM_SEG(sbi, curseg->segno), type);
+#if DEBUG_GC
+			f2fs_info(sbi, "[%s:%d]zone changed: segno=%u, old_zone=%u, new_zone=%u, type=%d\n",
+           		__func__, __LINE__, 
+				curseg->segno, 
+				curseg->zone, 
+				GET_ZONE_FROM_SEG(sbi, curseg->segno), 
+				type);
+#endif
 			entry->zone_id = curseg->zone;
 			spin_lock(&sm_i->zone_fifo_lock);
 			list_add_tail(&entry->list, &sm_i->zone_fifo_list);

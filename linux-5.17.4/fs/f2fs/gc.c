@@ -2112,9 +2112,7 @@ skip:
 #endif
   ktime_get_raw_ts64(&ts_total[1]);
   calclock(ts_total, &gcTotalTime, &gcTotalCnt);
-	f2fs_info(sbi, "[%s:%d]gc time: %llu %llu", __func__, __LINE__, gcTotalTime, dogcTime);
-
-
+	// f2fs_info(sbi, "[%s:%d]gc time: %llu %llu", __func__, __LINE__, gcTotalTime, dogcTime);
 
 	return seg_freed;
 }
@@ -2139,7 +2137,7 @@ int f2fs_gc(struct f2fs_sb_info *sbi, bool sync,
   unsigned long long time[6] = {0, };
   unsigned long long cnt[6] = {0, };
 #if DEBUG_GC
-    f2fs_info(sbi, "\n[%s:%d] f2fs_gc start", __func__, __LINE__);
+    // f2fs_info(sbi, "\n[%s:%d] f2fs_gc start", __func__, __LINE__);
 #endif
 	trace_f2fs_gc_begin(sbi->sb, sync, background,
 				get_pages(sbi, F2FS_DIRTY_NODES),
@@ -2188,7 +2186,7 @@ gc_more:
 		ret = -EINVAL;
 		goto stop;
 	}
-	f2fs_info(sbi, "[%s:%d] calling __get_victim, gc_type=%d", __func__, __LINE__, gc_type);
+	// f2fs_info(sbi, "[%s:%d] calling __get_victim, gc_type=%d", __func__, __LINE__, gc_type);
   ktime_get_raw_ts64(&ts_f2fs_gc[0][0]);
 	ret = __get_victim(sbi, &segno, gc_type);
   ktime_get_raw_ts64(&ts_f2fs_gc[0][1]);
@@ -2200,16 +2198,16 @@ gc_more:
 // 		}
 // #endif
 	if (ret) {
-		f2fs_info(sbi, "[%s:%d] __get_victim failed, ret=%d", __func__, __LINE__, ret);
+		// f2fs_info(sbi, "[%s:%d] __get_victim failed, ret=%d", __func__, __LINE__, ret);
 		goto stop;
 	}
 
-	f2fs_info(sbi, "[%s:%d] calling do_garbage_collect, segno=%u", __func__, __LINE__, segno);
+	// f2fs_info(sbi, "[%s:%d] calling do_garbage_collect, segno=%u", __func__, __LINE__, segno);
   ktime_get_raw_ts64(&ts_f2fs_gc[1][0]);
 	seg_freed = do_garbage_collect(sbi, segno, &gc_list, gc_type, force);
   ktime_get_raw_ts64(&ts_f2fs_gc[1][1]);
   calclock(ts_f2fs_gc[1], &time[1], &cnt[1]);
-	f2fs_info(sbi, "[%s:%d] do_garbage_collect returned, seg_freed=%d", __func__, __LINE__, seg_freed);
+	// f2fs_info(sbi, "[%s:%d] do_garbage_collect returned, seg_freed=%d", __func__, __LINE__, seg_freed);
 
 #if HOTNESS
 	// f2fs_info(sbi, "[%s,%d]:gc segno:%u, seg_freed:%d, free secs:%u",
