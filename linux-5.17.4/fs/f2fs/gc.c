@@ -940,6 +940,9 @@ static void add_gc_inode(struct gc_inode_list *gc_list, struct inode *inode)
 	new_ie = f2fs_kmem_cache_alloc(f2fs_inode_entry_slab,
 					GFP_NOFS, true, NULL);
 	new_ie->inode = inode;
+#if HOTNESS
+	new_ie->hot_visited = false;
+#endif
 
 	f2fs_radix_tree_insert(&gc_list->iroot, inode->i_ino, new_ie);
 	list_add_tail(&new_ie->list, &gc_list->ilist);
@@ -1810,7 +1813,14 @@ next_step:
 			if (atomic_read(&fi->i_access_count) > HOT_FILE_ACCESSED_THRESHOLD) {
 				if (all_cold && *all_cold)
 					*all_cold = false;
-				// f2fs_info(sbi, "DEBUG_GC: Hot file ino %lu, access %d", inode->i_ino, atomic_read(&fi->i_access_count));
+				/* mark this inode as hot-processed in this GC run */
+				{
+					struct inode_entry *ie;
+
+					ie = radix_tree_lookup(&gc_list->iroot, inode->i_ino);
+					if (ie)
+						ie->hot_visited = true;
+				}
 				if (gc_type == BG_GC && has_not_enough_free_secs(sbi, 0, 0)) {
 					if (locked) {
 						up_write(&fi->i_gc_rwsem[WRITE]);
@@ -2318,6 +2328,27 @@ gc_more:
 stop:
 	SIT_I(sbi)->last_victim[ALLOC_NEXT] = 0;
 	SIT_I(sbi)->last_victim[FLUSH_DEVICE] = init_segno;
+
+#if HOTNESS
+	/*
+	 * For all inodes that were treated as hot during this GC run,
+	 * reset their access counters once here. This ensures that within
+	 * a single f2fs_gc() invocation all their blocks are handled as
+	 * hot, but future GC rounds will only see them as hot again after
+	 * accumulating new accesses.
+	 */
+	{
+		struct inode_entry *ie;
+
+		list_for_each_entry(ie, &gc_list.ilist, list) {
+			if (ie->hot_visited) {
+				struct f2fs_inode_info *fi = F2FS_I(ie->inode);
+
+				atomic_set(&fi->i_access_count, 0);
+			}
+		}
+	}
+#endif
 
 	trace_f2fs_gc_end(sbi->sb, ret, total_freed, sec_freed,
 				get_pages(sbi, F2FS_DIRTY_NODES),

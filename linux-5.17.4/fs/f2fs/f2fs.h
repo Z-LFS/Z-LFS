@@ -302,6 +302,9 @@ struct ino_entry {
 struct inode_entry {
 	struct list_head list;	/* list head */
 	struct inode *inode;	/* vfs inode pointer */
+#if HOTNESS
+	bool hot_visited;
+#endif
 };
 
 struct fsync_node_entry {
