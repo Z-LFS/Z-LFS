@@ -1098,6 +1098,11 @@ struct f2fs_sm_info {
 	// every cur_zone has its own fifo list
 	struct list_head zone_fifo_list;
 	spinlock_t zone_fifo_lock;
+	/* per-zone hotness statistics and threshold */
+	int *zone_hot_min;
+	int *zone_hot_max;
+	int *zone_hot_thresh;
+	bool *zone_hot_seen;
 #endif
 
 	struct sit_info *sit_info;		/* whole segment information */

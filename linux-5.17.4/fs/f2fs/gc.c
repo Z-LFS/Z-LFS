@@ -1589,13 +1589,14 @@ static int gc_data_segment(struct f2fs_sb_info *sbi, struct f2fs_summary *sum,
 	int phase = 0;
 	int submitted = 0;
 	unsigned int usable_blks_in_seg = f2fs_usable_blks_in_seg(sbi, segno);
+	int dbg = 1;
 
 #if HOTNESS
+	struct f2fs_sm_info *sm_info = SM_I(sbi);
+	unsigned int zoneno = GET_ZONE_FROM_SEG(sbi, segno);
 	if (all_cold)
 		*all_cold = true;
 #endif
-	/* debug flag left here intentionally for future use */
-	int dbg = 1;
 	start_addr = START_BLOCK(sbi, segno);
   
 //  struct timespec64 ts[5][2];
@@ -1810,7 +1811,27 @@ next_step:
 
 #if HOTNESS
 			/* if file is hot,move data page */
-			if (atomic_read(&fi->i_access_count) > HOT_FILE_ACCESSED_THRESHOLD) {
+			
+				int access = atomic_read(&fi->i_access_count);
+				int zone_th = sm_info->zone_hot_thresh ?
+					sm_info->zone_hot_thresh[zoneno] : 0;
+
+				/* update per-zone hotness stats when above global threshold */
+				if (access > HOT_FILE_ACCESSED_THRESHOLD) {
+					if (!sm_info->zone_hot_seen[zoneno]) {
+						sm_info->zone_hot_seen[zoneno] = true;
+						sm_info->zone_hot_min[zoneno] = access;
+						sm_info->zone_hot_max[zoneno] = access;
+					} else {
+						if (access < sm_info->zone_hot_min[zoneno])
+							sm_info->zone_hot_min[zoneno] = access;
+						if (access > sm_info->zone_hot_max[zoneno])
+							sm_info->zone_hot_max[zoneno] = access;
+					}
+				}
+
+				if (access > HOT_FILE_ACCESSED_THRESHOLD &&
+					access > zone_th) {
 				if (all_cold && *all_cold)
 					*all_cold = false;
 				/* mark this inode as hot-processed in this GC run */
@@ -1923,6 +1944,10 @@ static int do_garbage_collect(struct f2fs_sb_info *sbi,
 						SUM_TYPE_DATA : SUM_TYPE_NODE;
 	int submitted = 0;
 
+#if HOTNESS
+	bool segment_all_cold;
+#endif
+
   struct timespec64 ts_dogc[2];
   struct timespec64 ts_total[2];
   unsigned long long dogcTime = 0, dogcCnt = 0;
@@ -2005,6 +2030,9 @@ static int do_garbage_collect(struct f2fs_sb_info *sbi,
 // META_FOR_ZNS
 // lock (GC <-> merge thread) -> just see log tree
 //
+#if HOTNESS
+		segment_all_cold = false;
+#endif
 		sum = page_address(sum_page);
 #if META_FOR_ZNS && !NAIVE_MFZ
 #if DELAYED_MERGE
@@ -2046,9 +2074,6 @@ Not implemented
 		 *   - down_read(sentry_lock)     - change_curseg()
 		 *                                  - lock_page(sum_page)
 		 */
-#if HOTNESS
-		bool segment_all_cold = false;
-#endif
 		ktime_get_raw_ts64(&ts_dogc[0]);
 		if (type == SUM_TYPE_NODE) {
 #if DEBUG_GC
@@ -2162,6 +2187,20 @@ int f2fs_gc(struct f2fs_sb_info *sbi, bool sync,
 	sbi->skipped_gc_rwsem = 0;
 	first_skipped = last_skipped;
   ktime_get_raw_ts64(&ts_f2fs_gc[2][0]);
+#if HOTNESS
+	/* reset per-zone hotness stats for this GC invocation */
+	{
+		struct f2fs_sm_info *sm_info = SM_I(sbi);
+		unsigned int total_zones = MAIN_SECS(sbi) / sbi->secs_per_zone;
+		unsigned int i;
+
+		for (i = 0; i < total_zones; i++) {
+			sm_info->zone_hot_seen[i] = false;
+			sm_info->zone_hot_min[i] = 0;
+			sm_info->zone_hot_max[i] = 0;
+		}
+	}
+#endif
 gc_more:
 	if (unlikely(!(sbi->sb->s_flags & SB_ACTIVE))) {
 		ret = -EINVAL;
@@ -2330,6 +2369,31 @@ stop:
 	SIT_I(sbi)->last_victim[FLUSH_DEVICE] = init_segno;
 
 #if HOTNESS
+	/* update per-zone dynamic hotness thresholds based on this GC run */
+	{
+		struct f2fs_sm_info *sm_info = SM_I(sbi);
+		unsigned int total_zones = MAIN_SECS(sbi) / sbi->secs_per_zone;
+		unsigned int i;
+
+		for (i = 0; i < total_zones; i++) {
+			int minc, maxc, a;
+
+			if (!sm_info->zone_hot_seen[i])
+				continue;
+
+			minc = sm_info->zone_hot_min[i];
+			maxc = sm_info->zone_hot_max[i];
+			if (minc >= maxc) {
+				/* all hot samples similar: protect none next round */
+				a = maxc;
+			} else {
+				int span = maxc - minc;
+				a = minc + span * 7 / 10;
+			}
+			sm_info->zone_hot_thresh[i] = a;
+		}
+	}
+
 	/*
 	 * For all inodes that were treated as hot during this GC run,
 	 * reset their access counters once here. This ensures that within

@@ -7286,9 +7286,26 @@ int f2fs_build_segment_manager(struct f2fs_sb_info *sbi)
 	/* init sm info */
 	sbi->sm_info = sm_info;
 #if HOTNESS
-		//init every curzone_fifo_list
-		INIT_LIST_HEAD(&sm_info->zone_fifo_list);
-		spin_lock_init(&sm_info->zone_fifo_lock);
+	/* init per-zone fifo and hotness data (when enabled) */
+	// init every curzone_fifo_list
+	INIT_LIST_HEAD(&sm_info->zone_fifo_list);
+	spin_lock_init(&sm_info->zone_fifo_lock);
+	{
+		unsigned int total_zones = MAIN_SECS(sbi) / sbi->secs_per_zone;
+
+		sm_info->zone_hot_min = kcalloc(total_zones, sizeof(int), GFP_KERNEL);
+		if (!sm_info->zone_hot_min)
+			return -ENOMEM;
+		sm_info->zone_hot_max = kcalloc(total_zones, sizeof(int), GFP_KERNEL);
+		if (!sm_info->zone_hot_max)
+			return -ENOMEM;
+		sm_info->zone_hot_thresh = kcalloc(total_zones, sizeof(int), GFP_KERNEL);
+		if (!sm_info->zone_hot_thresh)
+			return -ENOMEM;
+		sm_info->zone_hot_seen = kcalloc(total_zones, sizeof(bool), GFP_KERNEL);
+		if (!sm_info->zone_hot_seen)
+			return -ENOMEM;
+	}
 #endif
 	sm_info->seg0_blkaddr = le32_to_cpu(raw_super->segment0_blkaddr);
 	sm_info->main_blkaddr = le32_to_cpu(raw_super->main_blkaddr);
@@ -7528,6 +7545,13 @@ void f2fs_destroy_segment_manager(struct f2fs_sb_info *sbi)
 
 	if (!sm_info)
 		return;
+
+#if HOTNESS
+	kfree(sm_info->zone_hot_min);
+	kfree(sm_info->zone_hot_max);
+	kfree(sm_info->zone_hot_thresh);
+	kfree(sm_info->zone_hot_seen);
+#endif
 	f2fs_destroy_flush_cmd_control(sbi, true);
 	destroy_discard_cmd_control(sbi);
 	destroy_dirty_segmap(sbi);
