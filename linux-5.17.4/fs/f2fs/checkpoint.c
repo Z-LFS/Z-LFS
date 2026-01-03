@@ -1517,15 +1517,18 @@ void f2fs_wait_on_all_pages(struct f2fs_sb_info *sbi, int type)
 	f2fs_info(sbi, "[%s:%d] wait_on_all_pages enter, type=%d, initial pages=%lld",\
 		__func__, __LINE__, type, (long long)get_pages(sbi, type));
 	for (;;) {
-		if (!get_pages(sbi, type))
+		if (!get_pages(sbi, type)) {
 			f2fs_info(sbi, "[%s:%d] wait_on_all_pages: no more pages for type=%d, exit loop",\
 				__func__, __LINE__, type);
 			break;
+		}
 
-		if (unlikely(f2fs_cp_error(sbi)))
+		if (unlikely(f2fs_cp_error(sbi))) {
 			f2fs_info(sbi, "[%s:%d] wait_on_all_pages: cp_error set, type=%d, pages=%lld, exit loop",\
 				__func__, __LINE__, type, (long long)get_pages(sbi, type));
 			break;
+		}
+			
 
 		if (type == F2FS_DIRTY_META) {
 			f2fs_info(sbi, "[%s:%d] wait_on_all_pages: F2FS_DIRTY_META, pages=%lld, call f2fs_sync_meta_pages",\
@@ -1757,6 +1760,11 @@ static int do_checkpoint(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 	ckpt->cp_pack_start_sum = cpu_to_le32(1 + cp_payload_blks +
 			orphan_blocks);
 
+	f2fs_info(sbi,
+		"[%s:%d]cp_payload_blks=%u data_sum_blocks=%u orphan_blocks=%u total=%u",
+		__func__, __LINE__, cp_payload_blks, data_sum_blocks, orphan_blocks,
+		le32_to_cpu(ckpt->cp_pack_total_block_count));
+
 	if (__remain_node_summaries(cpc->reason))
 		ckpt->cp_pack_total_block_count = cpu_to_le32(F2FS_CP_PACKS +
 				cp_payload_blks + data_sum_blocks +
@@ -1781,10 +1789,33 @@ static int do_checkpoint(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 
 	crc32 = f2fs_checkpoint_chksum(sbi, ckpt);
 	*((__le32 *)((unsigned char *)ckpt +
-				le32_to_cpu(ckpt->checksum_offset)))
+			le32_to_cpu(ckpt->checksum_offset)))
 				= cpu_to_le32(crc32);
 
 	start_blk = __start_cp_next_addr(sbi);
+
+#if HOTNESS
+	/*
+	 * For HOTNESS builds, do a strict range check for the whole
+	 * checkpoint pack to avoid issuing IO beyond MAX_BLKADDR.
+	 */
+	{
+		u64 start = (u64)start_blk;
+		u64 total = (u64)le32_to_cpu(ckpt->cp_pack_total_block_count);
+		u64 end = start + total;
+
+		if (unlikely(end > (u64)MAX_BLKADDR(sbi))) {
+			f2fs_err(sbi,
+				"invalid cp pack range: start=%llu total=%llu end=%llu max=%llu",\
+				(unsigned long long)start,
+				(unsigned long long)total,
+				(unsigned long long)end,
+				(unsigned long long)MAX_BLKADDR(sbi));
+			return -EFSCORRUPTED;
+		}
+	}
+#endif
+
 	f2fs_info(sbi, "[%s:%d] ZNS do_checkpoint: start_blk=%u, cp_pack_total_block_count=%u",\
 		__func__, __LINE__, (unsigned int)start_blk,\
 		le32_to_cpu(ckpt->cp_pack_total_block_count));
@@ -2037,6 +2068,28 @@ static int do_checkpoint(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 				= cpu_to_le32(crc32);
 
 	start_blk = __start_cp_next_addr(sbi);
+
+#if HOTNESS
+	/*
+	 * For HOTNESS builds, also protect the default (non-ZNS)
+	 * checkpoint layout with the same range check.
+	 */
+	{
+		u64 start = (u64)start_blk;
+		u64 total = (u64)le32_to_cpu(ckpt->cp_pack_total_block_count);
+		u64 end = start + total;
+
+		if (unlikely(end > (u64)MAX_BLKADDR(sbi))) {
+			f2fs_err(sbi,
+				"invalid cp pack range: start=%llu total=%llu end=%llu max=%llu",\
+				(unsigned long long)start,
+				(unsigned long long)total,
+				(unsigned long long)end,
+				(unsigned long long)MAX_BLKADDR(sbi));
+			return -EFSCORRUPTED;
+		}
+	}
+#endif
 
 	/* write nat bits */
 	if ((cpc->reason & CP_UMOUNT) &&
