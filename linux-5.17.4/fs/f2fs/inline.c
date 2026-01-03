@@ -200,6 +200,7 @@ int f2fs_convert_inline_inode(struct inode *inode)
 	if (!page)
 		return -ENOMEM;
 
+	f2fs_info(sbi, "[%s:%d] read cp lock getted", __func__, __LINE__);
 	f2fs_lock_op(sbi);
 
 	ipage = f2fs_get_node_page(sbi, inode->i_ino);

@@ -1470,14 +1470,17 @@ retry_flush_dents:
 		goto retry_flush_quotas;
 	}
 retry_flush_nodes:
+	f2fs_info(sbi, "[%s:%d] Prepare to flush all the node pages", __func__, __LINE__);
 	down_write(&sbi->node_write);
 
 	if (get_pages(sbi, F2FS_DIRTY_NODES)) {
+		f2fs_info(sbi, "[%s:%d] There are still dirty node pages", __func__, __LINE__);
 		up_write(&sbi->node_write);
 		atomic_inc(&sbi->wb_sync_req[NODE]);
 		err = f2fs_sync_node_pages(sbi, &wbc, false, FS_CP_NODE_IO);
 		atomic_dec(&sbi->wb_sync_req[NODE]);
 		if (err) {
+			f2fs_info(sbi, "[%s:%d] Fail to flush node pages", __func__, __LINE__);
 			up_write(&sbi->node_change);
 			f2fs_info(sbi, "[%s:%d] Unlock all the FS operations nodes", __func__, __LINE__);
 			f2fs_unlock_all(sbi);
@@ -1511,25 +1514,36 @@ void f2fs_wait_on_all_pages(struct f2fs_sb_info *sbi, int type)
 	//unsigned long long totalTime = 0, totalCnt = 0;
 
 	//ktime_get_raw_ts64(&ts_total[0]);
+	f2fs_info(sbi, "[%s:%d] wait_on_all_pages enter, type=%d, initial pages=%lld",\
+		__func__, __LINE__, type, (long long)get_pages(sbi, type));
 	for (;;) {
 		if (!get_pages(sbi, type))
+			f2fs_info(sbi, "[%s:%d] wait_on_all_pages: no more pages for type=%d, exit loop",\
+				__func__, __LINE__, type);
 			break;
 
 		if (unlikely(f2fs_cp_error(sbi)))
+			f2fs_info(sbi, "[%s:%d] wait_on_all_pages: cp_error set, type=%d, pages=%lld, exit loop",\
+				__func__, __LINE__, type, (long long)get_pages(sbi, type));
 			break;
 
-		if (type == F2FS_DIRTY_META)
+		if (type == F2FS_DIRTY_META) {
+			f2fs_info(sbi, "[%s:%d] wait_on_all_pages: F2FS_DIRTY_META, pages=%lld, call f2fs_sync_meta_pages",\
+				__func__, __LINE__, (long long)get_pages(sbi, type));
 			f2fs_sync_meta_pages(sbi, META, LONG_MAX,
 							FS_CP_META_IO);
-		else if (type == F2FS_WB_CP_DATA) {
+		} else if (type == F2FS_WB_CP_DATA) {
 			//ktime_get_raw_ts64(&ts[0]);
+			f2fs_info(sbi, "[%s:%d] wait_on_all_pages: F2FS_WB_CP_DATA, pages=%lld, call f2fs_submit_merged_write(DATA)",\
+				__func__, __LINE__, (long long)get_pages(sbi, type));
 			f2fs_submit_merged_write(sbi, DATA);
 			//ktime_get_raw_ts64(&ts[1]);
 			//calclock(ts, &submitTime, &submitCnt);
 		}
 #if DELAYED_MERGE
     else if (type == F2FS_MERGE_META) {
-//		  printk("(%s:%d) merge meta type pages : %lld", __func__, __LINE__, get_pages(sbi, type));
+			f2fs_info(sbi, "[%s:%d] wait_on_all_pages: F2FS_MERGE_META, pages=%lld, call f2fs_submit_merged_write(DATA)",\
+				__func__, __LINE__, (long long)get_pages(sbi, type));
       f2fs_submit_merged_write(sbi, DATA);
     }
 #endif
@@ -1538,6 +1552,8 @@ void f2fs_wait_on_all_pages(struct f2fs_sb_info *sbi, int type)
 		io_schedule_timeout(DEFAULT_IO_TIMEOUT);
 	}
 	finish_wait(&sbi->cp_wait, &wait);
+	f2fs_info(sbi, "[%s:%d] wait_on_all_pages exit, type=%d",\
+		__func__, __LINE__, type);
 	//ktime_get_raw_ts64(&ts_total[1]);
 	//calclock(ts_total, &totalTime, &totalCnt);
 /*
@@ -1699,11 +1715,14 @@ static int do_checkpoint(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 	long nwritten;
 
 	/* Flush all the NAT/SIT pages */
-
+	f2fs_info(sbi, "[%s:%d] ZNS do_checkpoint: before first f2fs_sync_meta_pages",\
+		__func__, __LINE__);
 	//ktime_get_raw_ts64(&ts[0]);
 	nwritten = f2fs_sync_meta_pages(sbi, META, LONG_MAX, FS_CP_META_IO);
 	//ktime_get_raw_ts64(&ts[1]);
 	//calclock(ts, &sync_meta1_time, &sync_meta1_cnt);
+	f2fs_info(sbi, "[%s:%d] ZNS do_checkpoint: after first f2fs_sync_meta_pages, nwritten=%ld",\
+		__func__, __LINE__, nwritten);
 
 	/* start to update checkpoint, cp ver is already updated previously */
 	ckpt->elapsed_time = cpu_to_le64(get_mtime(sbi, true));
@@ -1752,9 +1771,13 @@ static int do_checkpoint(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 
 	/* update SIT/NAT bitmap */
 	//META_FOR_ZNS: for metadata merge
+	f2fs_info(sbi, "[%s:%d] ZNS do_checkpoint: before get_sit/nat/ssa_bitmap",\
+		__func__, __LINE__);
 	get_sit_bitmap(sbi, __bitmap_ptr(sbi, SIT_BITMAP));
 	get_nat_bitmap(sbi, __bitmap_ptr(sbi, NAT_BITMAP));
 	get_ssa_bitmap(sbi, __bitmap_ptr(sbi, SSA_BITMAP));
+	f2fs_info(sbi, "[%s:%d] ZNS do_checkpoint: after get_sit/nat/ssa_bitmap",\
+		__func__, __LINE__);
 
 	crc32 = f2fs_checkpoint_chksum(sbi, ckpt);
 	*((__le32 *)((unsigned char *)ckpt +
@@ -1762,8 +1785,13 @@ static int do_checkpoint(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 				= cpu_to_le32(crc32);
 
 	start_blk = __start_cp_next_addr(sbi);
+	f2fs_info(sbi, "[%s:%d] ZNS do_checkpoint: start_blk=%u, cp_pack_total_block_count=%u",\
+		__func__, __LINE__, (unsigned int)start_blk,\
+		le32_to_cpu(ckpt->cp_pack_total_block_count));
 
 	/* write out checkpoint buffer at block 0 */
+	f2fs_info(sbi, "[%s:%d] ZNS do_checkpoint: write main ckpt block",\
+		__func__, __LINE__);
 	f2fs_update_meta_page(sbi, ckpt, start_blk++);
 
 	for (i = 1; i < 1 + cp_payload_blks; i++){
@@ -1771,13 +1799,19 @@ static int do_checkpoint(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 		f2fs_update_meta_page(sbi, (char *)ckpt + i * F2FS_BLKSIZE,
 							start_blk++);
 	}
+	f2fs_info(sbi, "[%s:%d] ZNS do_checkpoint: after writing cp payload blocks, start_blk=%u",\
+		__func__, __LINE__, (unsigned int)start_blk);
 
 	if (orphan_num) {
+		f2fs_info(sbi, "[%s:%d] ZNS do_checkpoint: write_orphan_inodes, orphan_blocks=%u",\
+			__func__, __LINE__, orphan_blocks);
 		write_orphan_inodes(sbi, start_blk);
 		start_blk += orphan_blocks;
 	}
 
 	//META_FOR_ZNS : write current sumblk in "CP"
+	f2fs_info(sbi, "[%s:%d] ZNS do_checkpoint: before f2fs_write_data_summaries, start_blk=%u",\
+		__func__, __LINE__, (unsigned int)start_blk);
 	f2fs_write_data_summaries(sbi, start_blk);
 	start_blk += data_sum_blocks;
 
@@ -1790,6 +1824,8 @@ static int do_checkpoint(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 
 	if (__remain_node_summaries(cpc->reason)) {
 	//META_FOR_ZNS : write current sumblk in "CP"
+		f2fs_info(sbi, "[%s:%d] ZNS do_checkpoint: before f2fs_write_node_summaries, start_blk=%u",\
+			__func__, __LINE__, (unsigned int)start_blk);
 		f2fs_write_node_summaries(sbi, start_blk);
 		start_blk += NR_CURSEG_NODE_TYPE;
 	}
@@ -1819,51 +1855,77 @@ static int do_checkpoint(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 		}
 		start_blk += nm_i->nat_bits_blocks;
 	}
+	f2fs_info(sbi, "[%s:%d] ZNS do_checkpoint: before second f2fs_sync_meta_pages, start_blk=%u",\
+		__func__, __LINE__, (unsigned int)start_blk);
 
 	/* Here, we have one bio having CP pack except cp pack 2 page */
 	//ktime_get_raw_ts64(&ts[0]);
 	f2fs_sync_meta_pages(sbi, META, LONG_MAX, FS_CP_META_IO);
 	//ktime_get_raw_ts64(&ts[1]);
 	//calclock(ts, &sync_meta2_time, &sync_meta2_cnt);
+	f2fs_info(sbi, "[%s:%d] ZNS do_checkpoint: after second f2fs_sync_meta_pages",\
+		__func__, __LINE__);
 
 	/* Wait for all dirty meta pages to be submitted for IO */
 	//ktime_get_raw_ts64(&ts[0]);
+	f2fs_info(sbi, "[%s:%d] ZNS do_checkpoint: before f2fs_wait_on_all_pages(F2FS_DIRTY_META)",\
+		__func__, __LINE__);
 	f2fs_wait_on_all_pages(sbi, F2FS_DIRTY_META);
 	//ktime_get_raw_ts64(&ts[1]);
 	//calclock(ts, &wait_meta1_time, &wait_meta1_cnt);
+	f2fs_info(sbi, "[%s:%d] ZNS do_checkpoint: after f2fs_wait_on_all_pages(F2FS_DIRTY_META)",\
+		__func__, __LINE__);
 	
 /* wait for previous submitted meta pages writeback */
 	//ktime_get_raw_ts64(&ts[0]);
+	f2fs_info(sbi, "[%s:%d] ZNS do_checkpoint: before f2fs_wait_on_all_pages(F2FS_WB_CP_DATA, #1)",\
+		__func__, __LINE__);
 	f2fs_wait_on_all_pages(sbi, F2FS_WB_CP_DATA);
 	//ktime_get_raw_ts64(&ts[1]);
 	//calclock(ts, &wait_data1_time, &wait_data1_cnt);
+	f2fs_info(sbi, "[%s:%d] ZNS do_checkpoint: after f2fs_wait_on_all_pages(F2FS_WB_CP_DATA, #1)",\
+		__func__, __LINE__);
 
 #if NAIVE_MFZ
   f2fs_wait_on_all_pages(sbi, F2FS_MERGE_META);  
 #else
   if (cpc->reason & CP_UMOUNT) {
+	 f2fs_info(sbi, "[%s:%d] ZNS do_checkpoint: before f2fs_wait_on_all_pages(F2FS_MERGE_META)",\
+		 __func__, __LINE__);
    f2fs_wait_on_all_pages(sbi, F2FS_MERGE_META);  
+	 f2fs_info(sbi, "[%s:%d] ZNS do_checkpoint: after f2fs_wait_on_all_pages(F2FS_MERGE_META)",\
+		 __func__, __LINE__);
   }
 #endif
 
 	/* flush all device cache */
+	f2fs_info(sbi, "[%s:%d] ZNS do_checkpoint: before f2fs_flush_device_cache",\
+		__func__, __LINE__);
 	err = f2fs_flush_device_cache(sbi);
 	if (err){
 		//debug 
 		printk("(%s::%d) error here : %d", __func__, __LINE__, err);
 		return err;
 	}
+	f2fs_info(sbi, "[%s:%d] ZNS do_checkpoint: after f2fs_flush_device_cache, err=%d",\
+		__func__, __LINE__, err);
 
 	/* barrier and flush checkpoint cp pack 2 page if it can */
 	//ktime_get_raw_ts64(&ts[0]);
+	f2fs_info(sbi, "[%s:%d] ZNS do_checkpoint: before commit_checkpoint, start_blk=%u",\
+		__func__, __LINE__, (unsigned int)start_blk);
 	commit_checkpoint(sbi, ckpt, start_blk);
 	//ktime_get_raw_ts64(&ts[1]);
 	//calclock(ts, &commit_cp_time, &commit_cp_cnt);
 	
 	//ktime_get_raw_ts64(&ts[0]);
+	f2fs_info(sbi, "[%s:%d] ZNS do_checkpoint: before f2fs_wait_on_all_pages(F2FS_WB_CP_DATA, #2)",\
+		__func__, __LINE__);
 	f2fs_wait_on_all_pages(sbi, F2FS_WB_CP_DATA);
 	//ktime_get_raw_ts64(&ts[1]);
 	//calclock(ts, &wait_data2_time, &wait_data2_cnt);
+	f2fs_info(sbi, "[%s:%d] ZNS do_checkpoint: after f2fs_wait_on_all_pages(F2FS_WB_CP_DATA, #2)",\
+		__func__, __LINE__);
 	
 	/*
 	 * invalidate intermediate page cache borrowed from meta inode which are
@@ -2159,7 +2221,9 @@ int f2fs_write_checkpoint(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 
 	/* this is the case of multiple fstrims without any changes */
 	if (cpc->reason & CP_DISCARD) {
+		f2fs_info(sbi, "[%s:%d]discard checkpoint", __func__, __LINE__);
 		if (!f2fs_exist_trim_candidates(sbi, cpc)) {
+			f2fs_info(sbi, "[%s:%d]no discard candidates, skip checkpoint", __func__, __LINE__);
 			unblock_operations(sbi);
 			goto out;
 		}
@@ -2179,24 +2243,40 @@ int f2fs_write_checkpoint(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 	 * Increase the version number so that
 	 * SIT entries and seg summaries are written at correct place
 	 */
+	f2fs_info(sbi, "[%s:%d] start checkpoint tail, cur_cp_version=%llu",\
+		__func__, __LINE__, (unsigned long long)cur_cp_version(ckpt));
 	ckpt_ver = cur_cp_version(ckpt);
 	ckpt->checkpoint_ver = cpu_to_le64(++ckpt_ver);
+	f2fs_info(sbi, "[%s:%d] checkpoint_ver updated to=%llu",\
+		__func__, __LINE__, (unsigned long long)ckpt_ver);
 	/* write cached NAT/SIT entries to NAT/SIT area */
+	f2fs_info(sbi, "[%s:%d] before f2fs_flush_nat_entries",\
+		__func__, __LINE__);
 	err = f2fs_flush_nat_entries(sbi, cpc);
 	if (err) {
 		f2fs_err(sbi, "f2fs_flush_nat_entries failed err:%d, stop checkpoint", err);
 		f2fs_bug_on(sbi, !f2fs_cp_error(sbi));
 		goto stop;
 	}
+	f2fs_info(sbi, "[%s:%d] after f2fs_flush_nat_entries",\
+		__func__, __LINE__);
 	f2fs_flush_sit_entries(sbi, cpc);
+	f2fs_info(sbi, "[%s:%d] after f2fs_flush_sit_entries",\
+		__func__, __LINE__);
 
 	/* save inmem log status */
 	f2fs_save_inmem_curseg(sbi);
+	f2fs_info(sbi, "[%s:%d] after f2fs_save_inmem_curseg",\
+		__func__, __LINE__);
 	
 	//ktime_get_raw_ts64(&ts[0]);
+	f2fs_info(sbi, "[%s:%d] before do_checkpoint",\
+		__func__, __LINE__);
 	err = do_checkpoint(sbi, cpc);
 	//ktime_get_raw_ts64(&ts[1]);
 	//calclock(ts, &docpTime, &docpCnt);
+	f2fs_info(sbi, "[%s:%d] after do_checkpoint, err=%d",\
+		__func__, __LINE__, err);
 	
 	if (err) {
 		f2fs_err(sbi, "do_checkpoint failed err:%d, stop checkpoint", err);
@@ -2207,17 +2287,25 @@ int f2fs_write_checkpoint(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 	}
 
 #if DELAYED_MERGE
+	f2fs_info(sbi, "[%s:%d] enter DELAYED_MERGE section, merge=0x%x",\
+		__func__, __LINE__, cpc->merge);
 	// invoke merge thread
 	if (is_set_ckpt_flags(sbi, CP_SIT_MERGE_DONE_FLAG)) {
+		f2fs_info(sbi, "[%s:%d] CP_SIT_MERGE_DONE_FLAG set, reset_meta_zone_towrite SIT_LOG",\
+			__func__, __LINE__);
 		reset_meta_zone_towrite(sbi, SM_I(sbi)->cur_sit_log ^ 0x1, SIT_LOG);
 		clear_ckpt_flags(sbi, CP_SIT_MERGE_DONE_FLAG);
 	}
 	if (is_set_ckpt_flags(sbi, CP_NAT_MERGE_DONE_FLAG)) {
+		f2fs_info(sbi, "[%s:%d] CP_NAT_MERGE_DONE_FLAG set, reset_meta_zone_towrite NAT_LOG",\
+			__func__, __LINE__);
 		reset_meta_zone_towrite(sbi, NM_I(sbi)->cur_nat_log ^ 0x1, NAT_LOG);
 		clear_ckpt_flags(sbi, CP_NAT_MERGE_DONE_FLAG);
 	}
 	if (is_set_ckpt_flags(sbi, CP_SSA_MERGE_DONE_FLAG)) {
 		//reset log zone
+		f2fs_info(sbi, "[%s:%d] CP_SSA_MERGE_DONE_FLAG set, reset_meta_zone_towrite SSA_LOG",\
+			__func__, __LINE__);
 		reset_meta_zone_towrite(sbi, SM_I(sbi)->cur_sum_log ^ 0x1, SSA_LOG);
 		clear_ckpt_flags(sbi, CP_SSA_MERGE_DONE_FLAG);
 	}
@@ -2273,9 +2361,13 @@ int f2fs_write_checkpoint(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 
 #endif
 
+	f2fs_info(sbi, "[%s:%d] before f2fs_restore_inmem_curseg",\
+		__func__, __LINE__);
 	f2fs_restore_inmem_curseg(sbi);
 stop:
 	//ktime_get_raw_ts64(&ts[0]);
+	f2fs_info(sbi , "[%s:%d] here is stop, write_checkpoint  unblock_operations start",
+		__func__, __LINE__);
 	unblock_operations(sbi);
 	//ktime_get_raw_ts64(&ts[1]);
 	//calclock(ts, &unblockTime, &unblockCnt);

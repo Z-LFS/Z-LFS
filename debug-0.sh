@@ -39,6 +39,8 @@ sudo ../f2fs-tools-1.15.0/mkfs/mkfs.f2fs -d 1 -f -m /dev/$DEV
 # sudo ../f2fs-tools-1.15.0/mkfs/mkfs.f2fs -d 1 -f -m /dev/nvme3n5
 
 sudo mount -t f2fs -o background_gc=off /dev/$DEV /mnt/f2fs
+
+sudo /home/z-lfs/Z-LFS/cache_stress.sh | tee /home/z-lfs/Z-LFS/zlfsdmesg/cache_stress.log
 # sudo mount /dev/$DEV /mnt/ZNS
 # sudo mount /dev/$DEV /mnt/f2fs
 # 挂载zlfs
