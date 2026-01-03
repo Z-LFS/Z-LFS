@@ -70,6 +70,18 @@ repeat:
 	f2fs_wait_on_page_writeback(page, META, true, true);
 	if (!PageUptodate(page))
 		SetPageUptodate(page);
+
+#if HOTNESS
+	if (unlikely(index == 1079001154UL)) {
+		f2fs_info(sbi,
+			"[%s:%d] f2fs_grab_meta_page suspicious idx=%lu caller=%pS",
+			__func__,
+			__LINE__,
+			(unsigned long)index,
+			__builtin_return_address(0));
+		dump_stack();
+	}
+#endif
 	return page;
 }
 
@@ -391,15 +403,25 @@ static int __f2fs_write_meta_page(struct page *page,
 	struct f2fs_sb_info *sbi = F2FS_P_SB(page);
 
 	trace_f2fs_writepage(page, META);
-	//printk("(%s:%d) page index : %lu",
-	//		__func__, __LINE__, page->index);
+
+// #if HOTNESS
+// 	f2fs_info(sbi,
+// 		"[%s:%d] __f2fs_write_meta_page enter idx=%lu nr_meta=%lld for_reclaim=%d io_type=%d",
+// 		__func__, __LINE__,
+// 		page->index,
+// 		get_pages(sbi, F2FS_DIRTY_META),
+// 		wbc->for_reclaim,
+// 		io_type);
+// #endif
 
 	if (unlikely(f2fs_cp_error(sbi))){
-		printk("(%s:%d) error : redirty out, page index : %lu",
+		f2fs_info(sbi, "[%s:%d] error : redirty out1, page index : %lu",
 				__func__, __LINE__, page->index);
 		goto redirty_out;
 	}
 	if (unlikely(is_sbi_flag_set(sbi, SBI_POR_DOING))){
+		f2fs_info(sbi, "[%s:%d] error : redirty out2, page index : %lu",
+				__func__, __LINE__, page->index);
 		goto redirty_out;
 	}
 #if META_FOR_ZNS
@@ -407,10 +429,22 @@ static int __f2fs_write_meta_page(struct page *page,
 #else
 	if (wbc->for_reclaim && page->index < GET_SUM_BLOCK(sbi, 0))
 #endif
-  {
+  	{
+		f2fs_info(sbi, "[%s:%d] error : redirty out3, page index : %lu",
+				__func__, __LINE__, page->index);
 		goto redirty_out;
 	}
+
+// #if HOTNESS
+// 	f2fs_info(sbi,
+// 		"[%s:%d] __f2fs_write_meta_page do_write idx=%lu nr_meta_before_dec=%lld",
+// 		__func__, __LINE__,
+// 		page->index,
+// 		get_pages(sbi, F2FS_DIRTY_META));
+// #endif
 	f2fs_do_write_meta_page(sbi, page, io_type);
+	// f2fs_info(sbi , "[%s:%d] decrease F2FS_DIRTY_META page count", 
+	// 		__func__, __LINE__);
 	dec_page_count(sbi, F2FS_DIRTY_META);
 
 	if (wbc->for_reclaim)
@@ -427,6 +461,16 @@ static int __f2fs_write_meta_page(struct page *page,
 	return 0;
 
 redirty_out:
+
+#if HOTNESS
+	f2fs_info(sbi,
+		"[%s:%d] __f2fs_write_meta_page redirty_out idx=%lu nr_meta=%lld for_reclaim=%d io_type=%d",
+		__func__, __LINE__,
+		page->index,
+		get_pages(sbi, F2FS_DIRTY_META),
+		wbc->for_reclaim,
+		io_type);
+#endif
 	printk("(%s:%d) error : redirty_out", __func__, __LINE__); 
 	redirty_page_for_writepage(wbc, page);
 	return AOP_WRITEPAGE_ACTIVATE;
@@ -646,6 +690,26 @@ static int f2fs_set_meta_page_dirty(struct page *page)
 		SetPageUptodate(page);
 	if (!PageDirty(page)) {
 		__set_page_dirty_nobuffers(page);
+
+#if HOTNESS
+		if (page->index > 52428800) {
+			f2fs_info(F2FS_P_SB(page),
+			"[%s:%d] set_meta_page_dirty idx=%lu nr_meta=%lld caller=%pS",
+			__func__, __LINE__,
+			page->index,
+			get_pages(F2FS_P_SB(page), F2FS_DIRTY_META),
+			__builtin_return_address(0));
+		}
+		if (unlikely(page->index == 1079001154UL)) {
+			f2fs_info(F2FS_P_SB(page),
+			"[%s:%d] suspicious meta idx=%lu nr_meta=%lld caller=%pS",
+			__func__, __LINE__,
+			page->index,
+			get_pages(F2FS_P_SB(page), F2FS_DIRTY_META),
+			__builtin_return_address(0));
+			dump_stack();
+		}
+#endif
 		inc_page_count(F2FS_P_SB(page), F2FS_DIRTY_META);
 		set_page_private_reference(page);
 		return 1;
@@ -700,6 +764,16 @@ retry:
 		list_add_tail(&e->list, &im->ino_list);
 		if (type != ORPHAN_INO)
 			im->ino_num++;
+	#if HOTNESS
+		else {
+			f2fs_info(sbi,
+				"[%s:%d] __add_ino_entry ORPHAN_INO ino=%u ino_num(cur)=%lu caller=%pS",
+				__func__, __LINE__,
+				ino,
+				im->ino_num,
+				__builtin_return_address(0));
+		}
+	#endif
 	}
 
 	if (type == FLUSH_INO)
@@ -722,6 +796,25 @@ static void __remove_ino_entry(struct f2fs_sb_info *sbi, nid_t ino, int type)
 	if (e) {
 		list_del(&e->list);
 		radix_tree_delete(&im->ino_root, ino);
+	#if HOTNESS
+		if (type == ORPHAN_INO) {
+			unsigned long before = im->ino_num;
+			f2fs_info(sbi,
+				"[%s:%d] __remove_ino_entry ORPHAN_INO ino=%u ino_num(before)=%lu caller=%pS",
+				__func__, __LINE__,
+				ino,
+				before,
+				__builtin_return_address(0));
+			if (!before) {
+				f2fs_info(sbi,
+					"[%s:%d] ORPHAN_INO ino_num underflow about to happen, ino=%u",
+					__func__, __LINE__, ino);
+				dump_stack();
+				/* first underflow: stop immediately to capture call stack */
+				f2fs_bug_on(sbi, 1);
+			}
+		}
+	#endif
 		im->ino_num--;
 		spin_unlock(&im->ino_lock);
 		kmem_cache_free(ino_entry_slab, e);
@@ -767,6 +860,16 @@ void f2fs_release_ino_entry(struct f2fs_sb_info *sbi, bool all)
 			list_del(&e->list);
 			radix_tree_delete(&im->ino_root, e->ino);
 			kmem_cache_free(ino_entry_slab, e);
+		#if HOTNESS
+			if (i == ORPHAN_INO && !im->ino_num) {
+				f2fs_info(sbi,
+					"[%s:%d] f2fs_release_ino_entry ORPHAN_INO ino_num underflow about to happen, ino=%u",
+					__func__, __LINE__, e->ino);
+				dump_stack();
+				/* first underflow while releasing ORPHAN list */
+				f2fs_bug_on(sbi, 1);
+			}
+		#endif
 			im->ino_num--;
 		}
 		spin_unlock(&im->ino_lock);
@@ -809,8 +912,18 @@ int f2fs_acquire_orphan_inode(struct f2fs_sb_info *sbi)
 
 	if (unlikely(im->ino_num >= sbi->max_orphans))
 		err = -ENOSPC;
-	else
+	else {
 		im->ino_num++;
+	}
+	#if HOTNESS
+	if (!err) {
+		f2fs_info(sbi,
+			"[%s:%d] f2fs_acquire_orphan_inode ino_num(after)=%lu max_orphans=%lu",
+			__func__, __LINE__,
+			im->ino_num,
+			(unsigned long)sbi->max_orphans);
+	}
+	#endif
 	spin_unlock(&im->ino_lock);
 
 	return err;
@@ -821,6 +934,13 @@ void f2fs_release_orphan_inode(struct f2fs_sb_info *sbi)
 	struct inode_management *im = &sbi->im[ORPHAN_INO];
 
 	spin_lock(&im->ino_lock);
+	#if HOTNESS
+	f2fs_info(sbi,
+		"[%s:%d] f2fs_release_orphan_inode ino_num(before)=%lu caller=%pS",
+		__func__, __LINE__,
+		im->ino_num,
+		__builtin_return_address(0));
+	#endif
 	f2fs_bug_on(sbi, im->ino_num == 0);
 	im->ino_num--;
 	spin_unlock(&im->ino_lock);
@@ -968,6 +1088,16 @@ static void write_orphan_inodes(struct f2fs_sb_info *sbi, block_t start_blk)
 	struct inode_management *im = &sbi->im[ORPHAN_INO];
 
 	orphan_blocks = GET_ORPHAN_BLOCKS(im->ino_num);
+
+#if HOTNESS
+	f2fs_info(sbi,
+		"[%s:%d] write_orphan_inodes start_blk=%u orphan_blocks=%u ino_num=%lu",
+		__func__,
+		__LINE__,
+		(unsigned int)start_blk,
+		(unsigned int)orphan_blocks,
+		(unsigned long)im->ino_num);
+#endif
 
 	/*
 	 * we don't need to do spin_lock(&im->ino_lock) here, since all the
@@ -1512,31 +1642,41 @@ void f2fs_wait_on_all_pages(struct f2fs_sb_info *sbi, int type)
 
 	//ktime_get_raw_ts64(&ts_total[0]);
 	for (;;) {
-		if (!get_pages(sbi, type))
+		if (!get_pages(sbi, type)) {
 			break;
+		}
 
-		if (unlikely(f2fs_cp_error(sbi)))
+		if (unlikely(f2fs_cp_error(sbi))) {
 			break;
+		}
 
-		if (type == F2FS_DIRTY_META)
+		if (type == F2FS_DIRTY_META) {
+			// f2fs_info(sbi, "[%s:%d] sync meta type pages : %lld", 
+			// __func__, __LINE__, get_pages(sbi, type));
 			f2fs_sync_meta_pages(sbi, META, LONG_MAX,
 							FS_CP_META_IO);
-		else if (type == F2FS_WB_CP_DATA) {
+		} else if (type == F2FS_WB_CP_DATA) {
 			//ktime_get_raw_ts64(&ts[0]);
+			f2fs_info(sbi, "[%s:%d] submit cp data type pages : %lld", 
+			__func__, __LINE__, get_pages(sbi, type));
 			f2fs_submit_merged_write(sbi, DATA);
 			//ktime_get_raw_ts64(&ts[1]);
 			//calclock(ts, &submitTime, &submitCnt);
 		}
 #if DELAYED_MERGE
     else if (type == F2FS_MERGE_META) {
-//		  printk("(%s:%d) merge meta type pages : %lld", __func__, __LINE__, get_pages(sbi, type));
+		  f2fs_info(sbi, "[%s:%d] merge meta type pages : %lld", 
+			__func__, __LINE__, get_pages(sbi, type));
       f2fs_submit_merged_write(sbi, DATA);
     }
 #endif
+		// f2fs_info(sbi, "[%s:%d] wait on page type : %lld", 
+		// 	__func__, __LINE__, get_pages(sbi, type));	
 		//printk("(%s:%d) get_page(%d):%lld", __func__, __LINE__, type, get_pages(sbi, type));
 		prepare_to_wait(&sbi->cp_wait, &wait, TASK_UNINTERRUPTIBLE);
 		io_schedule_timeout(DEFAULT_IO_TIMEOUT);
 	}
+	f2fs_info(sbi, "[%s:%d] finished wait on page type : %d", __func__, __LINE__, type);
 	finish_wait(&sbi->cp_wait, &wait);
 	//ktime_get_raw_ts64(&ts_total[1]);
 	//calclock(ts_total, &totalTime, &totalCnt);
@@ -1737,6 +1877,9 @@ static int do_checkpoint(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 	orphan_blocks = GET_ORPHAN_BLOCKS(orphan_num);
 	ckpt->cp_pack_start_sum = cpu_to_le32(1 + cp_payload_blks +
 			orphan_blocks);
+	
+	f2fs_info(sbi, "[%s:%d] orphan_blocks: %u, data_sum_blocks: %u, cp_payload_blks: %u",
+		__func__, __LINE__, orphan_blocks, data_sum_blocks, cp_payload_blks);
 
 	if (__remain_node_summaries(cpc->reason))
 		ckpt->cp_pack_total_block_count = cpu_to_le32(F2FS_CP_PACKS +
@@ -1828,7 +1971,9 @@ static int do_checkpoint(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 
 	/* Wait for all dirty meta pages to be submitted for IO */
 	//ktime_get_raw_ts64(&ts[0]);
+	f2fs_info(sbi, "[%s:%d] wait on all dirty meta pages before commit checkpoint", __func__, __LINE__);
 	f2fs_wait_on_all_pages(sbi, F2FS_DIRTY_META);
+	f2fs_info(sbi, "[%s:%d] done wait on all dirty meta pages before commit checkpoint", __func__, __LINE__);
 	//ktime_get_raw_ts64(&ts[1]);
 	//calclock(ts, &wait_meta1_time, &wait_meta1_cnt);
 	
@@ -2774,6 +2919,19 @@ static int __move_metadata_page(struct f2fs_sb_info *sbi,
 	f2fs_copy_page(src_page, dst_page);
 	f2fs_put_page(src_page, 1);
 	//write page
+
+#if HOTNESS
+	f2fs_info(sbi,
+		"[%s:%d] __move_metadata_page src_off=%lu dst_off=%lu dst_idx=%lu nr_meta_before_inc=%lld",
+		__func__, __LINE__,
+		(unsigned long)src_off,
+		(unsigned long)dst_off,
+		dst_page->index,
+		get_pages(sbi, F2FS_DIRTY_META));
+#else
+	f2fs_info(sbi , "[%s:%d] increase F2FS_DIRTY_META page count",
+			__func__, __LINE__);
+#endif
 	inc_page_count(sbi, F2FS_DIRTY_META);
 	//printk("(%s : %d) dst_page(idx: %lu)"	, __func__, __LINE__, dst_page->index);
 	if((ret = f2fs_sync_single_meta_page(dst_page))){

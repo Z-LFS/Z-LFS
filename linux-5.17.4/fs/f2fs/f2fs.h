@@ -2460,6 +2460,21 @@ static inline void dec_valid_block_count(struct f2fs_sb_info *sbi,
 
 static inline void inc_page_count(struct f2fs_sb_info *sbi, int count_type)
 {
+
+// #if HOTNESS
+// 	if (count_type == F2FS_DIRTY_META
+// #if DELAYED_MERGE
+// 		|| count_type == F2FS_MERGE_META
+// #endif
+// 		) {
+// 		f2fs_info(sbi,
+// 			"[%s:%d] inc_page_count type=%d nr=%d caller=%pS",
+// 			__func__, __LINE__,
+// 			count_type,
+// 			atomic_read(&sbi->nr_pages[count_type]),
+// 			__builtin_return_address(0));
+// 	}
+// #endif
 	atomic_inc(&sbi->nr_pages[count_type]);
 
 	if (count_type == F2FS_DIRTY_DENTS ||
@@ -2481,6 +2496,21 @@ static inline void inode_inc_dirty_pages(struct inode *inode)
 
 static inline void dec_page_count(struct f2fs_sb_info *sbi, int count_type)
 {
+
+// #if HOTNESS
+// 	if (count_type == F2FS_DIRTY_META
+// #if DELAYED_MERGE
+// 		|| count_type == F2FS_MERGE_META
+// #endif
+// 		) {
+// 		f2fs_info(sbi,
+// 			"[%s:%d] dec_page_count type=%d nr=%d caller=%pS",
+// 			__func__, __LINE__,
+// 			count_type,
+// 			atomic_read(&sbi->nr_pages[count_type]),
+// 			__builtin_return_address(0));
+// 	}
+// #endif
 	atomic_dec(&sbi->nr_pages[count_type]);
 }
 

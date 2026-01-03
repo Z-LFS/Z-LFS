@@ -1591,8 +1591,8 @@ static int gc_data_segment(struct f2fs_sb_info *sbi, struct f2fs_summary *sum,
 	if (all_cold)
 		*all_cold = true;
 #endif
-
-  	int dbg = 1;
+	/* debug flag left here intentionally for future use */
+	int dbg = 1;
 	start_addr = START_BLOCK(sbi, segno);
   
 //  struct timespec64 ts[5][2];
@@ -2036,10 +2036,10 @@ Not implemented
 		 *   - down_read(sentry_lock)     - change_curseg()
 		 *                                  - lock_page(sum_page)
 		 */
-    ktime_get_raw_ts64(&ts_dogc[0]);
 #if HOTNESS
 		bool segment_all_cold = false;
 #endif
+		ktime_get_raw_ts64(&ts_dogc[0]);
 		if (type == SUM_TYPE_NODE) {
 #if DEBUG_GC
       if (gc_type == FG_GC)

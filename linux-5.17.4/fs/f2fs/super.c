@@ -4490,6 +4490,7 @@ static int f2fs_cold_file_thread_func(void *data)
 	struct f2fs_dir_entry *de;
 	struct page *page;
 	nid_t pino;
+	int err;
 
 	set_freezable();
 
@@ -4539,6 +4540,25 @@ static int f2fs_cold_file_thread_func(void *data)
 
 		de = f2fs_find_entry_by_ino(dir, entry->nid, &page);
 		if (de) {
+			/*
+			 * Follow the same orphan accounting rule as f2fs_unlink():
+			 * acquire an orphan slot before deleting the dentry so that
+			 * later truncate_node()'s f2fs_remove_orphan_inode() can
+			 * safely decrement im[ORPHAN_INO].ino_num.
+			 */
+			err = f2fs_acquire_orphan_inode(sbi);
+			if (err) {
+				f2fs_put_page(page, 0);
+				up_write(&F2FS_I(dir)->i_sem);
+				f2fs_unlock_op(sbi);
+				iput(dir);
+				iput(inode);
+				spin_lock(&sbi->cold_inode_lock);
+				sbi->cold_file_pending_blocks -= entry->blocks;
+				spin_unlock(&sbi->cold_inode_lock);
+				kfree(entry);
+				continue;
+			}
 			f2fs_delete_entry(de, page, dir, inode);
 			
 			/* 

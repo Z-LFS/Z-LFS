@@ -519,8 +519,8 @@ void f2fs_balance_fs(struct f2fs_sb_info *sbi, bool need)
 	if (has_not_enough_free_secs(sbi, 0, 0)) {
 		if (test_opt(sbi, GC_MERGE) && sbi->gc_thread &&
 					sbi->gc_thread->f2fs_gc_task) {
-			f2fs_info(sbi, "[%s:%d]is here locked gc thread?", __func__, __LINE__);
 			DEFINE_WAIT(wait);
+			f2fs_info(sbi, "[%s:%d]is here locked gc thread?", __func__, __LINE__);
 
 			prepare_to_wait(&sbi->gc_thread->fggc_wq, &wait,
 						TASK_UNINTERRUPTIBLE);
