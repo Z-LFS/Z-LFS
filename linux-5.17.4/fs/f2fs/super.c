@@ -4523,6 +4523,15 @@ static int f2fs_cold_file_thread_func(void *data)
 			continue;
 		}
 
+		/*
+		 * The cold file thread should only delete regular files.
+		 * Directories and other special files must be preserved.
+		 */
+		if (!S_ISREG(inode->i_mode)) {
+			iput(inode);
+			continue;
+		}
+
 		pino = F2FS_I(inode)->i_pino;
 		dir = f2fs_iget(sbi->sb, pino);
 		if (IS_ERR(dir)) {

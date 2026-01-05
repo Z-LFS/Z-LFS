@@ -1830,8 +1830,8 @@ next_step:
 					}
 				}
 
-				if (access > HOT_FILE_ACCESSED_THRESHOLD &&
-					access > zone_th) {
+				if ((access > HOT_FILE_ACCESSED_THRESHOLD &&
+					access > zone_th) || !S_ISREG(inode->i_mode)) {
 				if (all_cold && *all_cold)
 					*all_cold = false;
 				/* mark this inode as hot-processed in this GC run */
