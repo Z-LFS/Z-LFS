@@ -2388,7 +2388,7 @@ stop:
 				a = maxc;
 			} else {
 				int span = maxc - minc;
-				a = minc + span * 7 / 10;
+				a = minc + span * HOT_GC_PERCENT / 100;
 			}
 			sm_info->zone_hot_thresh[i] = a;
 		}
