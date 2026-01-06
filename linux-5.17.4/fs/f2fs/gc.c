@@ -140,63 +140,6 @@ do_gc:
 
 		sync_mode = F2FS_OPTION(sbi).bggc_mode == BGGC_MODE_SYNC;
 
-#if HOTNESS
-					/*
-					 * Debug output: print current GC zone_th and
-					 * the zone_th for the 25% and 50% positions in
-					 * the zone_fifo_list (by arrival order).
-					 */
-					{
-						unsigned int last_zoneno = (segno == NULL_SEGNO) ? (unsigned int)-1 :
-							GET_ZONE_FROM_SEG(sbi, segno);
-						int last_zone_th = -1;
-						unsigned int fifo_len = 0;
-						unsigned int idx25 = 0, idx50 = 0;
-						unsigned int z25 = (unsigned int)-1, z50 = (unsigned int)-1;
-						int th25 = -1, th50 = -1;
-						struct zone_fifo_entry *ze;
-						struct list_head *pos;
-
-						if (last_zoneno != (unsigned int)-1 &&
-							last_zoneno < total_zones && sm_info->zone_hot_thresh)
-							last_zone_th = sm_info->zone_hot_thresh[last_zoneno];
-
-						spin_lock(&sm_info->zone_fifo_lock);
-						list_for_each(pos, &sm_info->zone_fifo_list)
-							fifo_len++;
-						if (fifo_len > 0) {
-							idx25 = (fifo_len - 1) / 4;
-							idx50 = (fifo_len - 1) / 2;
-							{
-								unsigned int idx = 0;
-								list_for_each_entry(ze, &sm_info->zone_fifo_list, list) {
-									if (idx == idx25)
-										z25 = ze->zone_id;
-									if (idx == idx50) {
-										z50 = ze->zone_id;
-										break;
-									}
-									idx++;
-								}
-							}
-						}
-						spin_unlock(&sm_info->zone_fifo_lock);
-
-						if (z25 != (unsigned int)-1 &&
-							z25 < total_zones && sm_info->zone_hot_thresh)
-							th25 = sm_info->zone_hot_thresh[z25];
-						if (z50 != (unsigned int)-1 &&
-							z50 < total_zones && sm_info->zone_hot_thresh)
-							th50 = sm_info->zone_hot_thresh[z50];
-
-						f2fs_info(sbi,
-							"[%s:%d] GC summary: last_zoneno=%u zone_th=%d, "
-							"zone_fifo_len=%u, z25=%u zone_th=%d, z50=%u zone_th=%d",
-							__func__, __LINE__,
-							last_zoneno, last_zone_th,
-							fifo_len, z25, th25, z50, th50);
-					}
-#endif
 		/* foreground GC was been triggered via f2fs_balance_fs() */
 		if (foreground)
 			sync_mode = false;
@@ -2305,6 +2248,64 @@ gc_more:
 		// f2fs_info(sbi, "[%s:%d] __get_victim failed, ret=%d", __func__, __LINE__, ret);
 		goto stop;
 	}
+
+#if HOTNESS
+	/*
+	 * Debug output: for the zone just chosen as GC victim,
+	 * print its current zone_th, and also the zone_th of the
+	 * 25% and 50% positions in zone_fifo_list (by arrival order).
+	 */
+	{
+		struct f2fs_sm_info *sm_info = SM_I(sbi);
+		unsigned int total_zones = MAIN_SECS(sbi) / sbi->secs_per_zone;
+		unsigned int zoneno = GET_ZONE_FROM_SEG(sbi, segno);
+		int zone_th = -1;
+		unsigned int fifo_len = 0;
+		unsigned int idx25 = 0, idx50 = 0;
+		unsigned int z25 = (unsigned int)-1, z50 = (unsigned int)-1;
+		int th25 = -1, th50 = -1;
+		struct zone_fifo_entry *ze;
+		struct list_head *pos;
+
+		if (zoneno < total_zones && sm_info->zone_hot_thresh)
+			zone_th = sm_info->zone_hot_thresh[zoneno];
+
+		spin_lock(&sm_info->zone_fifo_lock);
+		list_for_each(pos, &sm_info->zone_fifo_list)
+			fifo_len++;
+		if (fifo_len > 0) {
+			idx25 = (fifo_len - 1) / 4;
+			idx50 = (fifo_len - 1) / 2;
+			{
+				unsigned int idx = 0;
+				list_for_each_entry(ze, &sm_info->zone_fifo_list, list) {
+					if (idx == idx25)
+						z25 = ze->zone_id;
+					if (idx == idx50) {
+						z50 = ze->zone_id;
+						break;
+					}
+					idx++;
+				}
+			}
+		}
+		spin_unlock(&sm_info->zone_fifo_lock);
+
+		if (z25 != (unsigned int)-1 &&
+			z25 < total_zones && sm_info->zone_hot_thresh)
+			th25 = sm_info->zone_hot_thresh[z25];
+		if (z50 != (unsigned int)-1 &&
+			z50 < total_zones && sm_info->zone_hot_thresh)
+			th50 = sm_info->zone_hot_thresh[z50];
+
+		f2fs_info(sbi,
+			"[%s:%d] GC zone=%u zone_th=%d, "
+			"zone_fifo_len=%u, z25=%u zone_th=%d, z50=%u zone_th=%d",
+			__func__, __LINE__,
+			zoneno, zone_th,
+			fifo_len, z25, th25, z50, th50);
+	}
+#endif
 
 	// f2fs_info(sbi, "[%s:%d] calling do_garbage_collect, segno=%u", __func__, __LINE__, segno);
   ktime_get_raw_ts64(&ts_f2fs_gc[1][0]);
