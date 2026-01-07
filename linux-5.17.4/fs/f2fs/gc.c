@@ -24,12 +24,25 @@
 #include <trace/events/f2fs.h>
 
 #include <linux/kernel.h>
+#include <linux/sort.h>
 
 #include "calclock.h"
 //unsigned long long dogcTime, dogcCnt;
 //unsigned long long gcTotalTime, gcTotalCnt;
 
 static struct kmem_cache *victim_entry_slab;
+
+#if HOTNESS
+/* sort helper for descending int order */
+static int hot_int_cmp_desc(const void *a, const void *b)
+{
+	int aa = *(const int *)a;
+	int bb = *(const int *)b;
+
+	/* bb - aa gives descending order; watch for overflow is negligible here */
+	return bb - aa;
+}
+#endif
 
 static unsigned int count_bits(const unsigned long *addr,
 				unsigned int offset, unsigned int len);
@@ -1781,6 +1794,7 @@ next_step:
 
 		/* phase 4 */
 //    ktime_get_raw_ts64(&ts[phase][0]);
+
 		inode = find_gc_inode(gc_list, dni.ino);
 		if (inode) {
 			struct f2fs_inode_info *fi = F2FS_I(inode);
@@ -1810,23 +1824,10 @@ next_step:
 								+ ofs_in_node;
 
 #if HOTNESS
-			/* if file is hot,move data page */
-			
+			/* if file is hot, move data page */
 				int access = atomic_read(&fi->i_access_count);
 				int zone_th = sm_info->zone_hot_thresh ?
-					sm_info->zone_hot_thresh[zoneno] : 0;
-
-				/* update per-zone hotness stats for all files */
-				if (!sm_info->zone_hot_seen[zoneno]) {
-					sm_info->zone_hot_seen[zoneno] = true;
-					sm_info->zone_hot_min[zoneno] = access;
-					sm_info->zone_hot_max[zoneno] = access;
-				} else {
-					if (access < sm_info->zone_hot_min[zoneno])
-						sm_info->zone_hot_min[zoneno] = access;
-					if (access > sm_info->zone_hot_max[zoneno])
-						sm_info->zone_hot_max[zoneno] = access;
-				}
+						sm_info->zone_hot_thresh[zoneno] : 0;
 
 				if ((access > HOT_FILE_ACCESSED_THRESHOLD &&
 					access > zone_th) || !S_ISREG(inode->i_mode)) {
@@ -2184,21 +2185,7 @@ int f2fs_gc(struct f2fs_sb_info *sbi, bool sync,
 	cpc.reason = __get_cp_reason(sbi);
 	sbi->skipped_gc_rwsem = 0;
 	first_skipped = last_skipped;
-  ktime_get_raw_ts64(&ts_f2fs_gc[2][0]);
-#if HOTNESS
-	/* reset per-zone hotness stats for this GC invocation */
-	{
-		struct f2fs_sm_info *sm_info = SM_I(sbi);
-		unsigned int total_zones = MAIN_SECS(sbi) / sbi->secs_per_zone;
-		unsigned int i;
-
-		for (i = 0; i < total_zones; i++) {
-			sm_info->zone_hot_seen[i] = false;
-			sm_info->zone_hot_min[i] = 0;
-			sm_info->zone_hot_max[i] = 0;
-		}
-	}
-#endif
+	ktime_get_raw_ts64(&ts_f2fs_gc[2][0]);
 gc_more:
 	if (unlikely(!(sbi->sb->s_flags & SB_ACTIVE))) {
 		ret = -EINVAL;
@@ -2250,6 +2237,138 @@ gc_more:
 	}
 
 #if HOTNESS
+	/*
+	 * Before running GC on this victim section, scan the entire
+	 * zone containing it, collect all regular files' access counts,
+	 * and choose the HOT_GC_PERCENT-th hottest file as the zone
+	 * hotness threshold (zone_th).
+	 */
+	{
+		struct f2fs_sm_info *sm_info = SM_I(sbi);
+		struct super_block *sb = sbi->sb;
+		unsigned int total_secs = MAIN_SECS(sbi);
+		unsigned int secno = GET_SEC_FROM_SEG(sbi, segno);
+		unsigned int zoneno = GET_ZONE_FROM_SEC(sbi, secno);
+		unsigned int zone_start_sec, zone_end_sec, sec;
+		unsigned int file_cnt = 0, idx = 0;
+		int *vals = NULL;
+		struct gc_inode_list zlist = {
+			.ilist = LIST_HEAD_INIT(zlist.ilist),
+			.iroot = RADIX_TREE_INIT(zlist.iroot, GFP_NOFS),
+		};
+
+		/* only meaningful on zoned devices with hotness enabled */
+		if (!f2fs_sb_has_blkzoned(sbi) || !sm_info->zone_hot_thresh)
+			goto hot_done;
+
+		if (!sbi->secs_per_zone)
+			goto hot_done;
+
+		if (zoneno >= total_secs / sbi->secs_per_zone)
+			goto hot_done;
+
+		zone_start_sec = zoneno * sbi->secs_per_zone;
+		zone_end_sec = zone_start_sec + sbi->secs_per_zone;
+		if (zone_start_sec >= total_secs)
+			goto hot_done;
+		if (zone_end_sec > total_secs)
+			zone_end_sec = total_secs;
+
+		for (sec = zone_start_sec; sec < zone_end_sec; sec++) {
+			unsigned int seg_start = GET_SEG_FROM_SEC(sbi, sec);
+			unsigned int seg_end = seg_start + sbi->segs_per_sec;
+			unsigned int s;
+
+			for (s = seg_start; s < seg_end; s++) {
+				struct seg_entry *se = get_seg_entry(sbi, s);
+				struct page *sum_page;
+				struct f2fs_summary_block *sum;
+				struct f2fs_summary *entry;
+				unsigned int blk, usable;
+
+				if (!IS_DATASEG(se->type))
+					continue;
+				if (get_valid_blocks(sbi, s, false) == 0)
+					continue;
+
+				sum_page = f2fs_get_sum_page(sbi, s);
+				if (IS_ERR(sum_page))
+					continue;
+				unlock_page(sum_page);
+				sum = page_address(sum_page);
+				usable = f2fs_usable_blks_in_seg(sbi, s);
+				entry = sum->entries;
+
+				for (blk = 0; blk < usable; blk++, entry++) {
+					struct inode *inode;
+					nid_t nid = le32_to_cpu(entry->nid);
+
+					if (!nid)
+						continue;
+
+					inode = f2fs_iget(sb, nid);
+					if (IS_ERR(inode) || is_bad_inode(inode) ||
+					    !S_ISREG(inode->i_mode)) {
+						if (!IS_ERR(inode))
+							iput(inode);
+						continue;
+					}
+
+					add_gc_inode(&zlist, inode);
+				}
+
+				f2fs_put_page(sum_page, 0);
+			}
+		}
+
+		/* count regular files in this zone */
+		{
+			struct inode_entry *ie;
+
+			list_for_each_entry(ie, &zlist.ilist, list) {
+				if (S_ISREG(ie->inode->i_mode))
+					file_cnt++;
+			}
+		}
+		if (!file_cnt)
+			goto hot_free;
+
+		vals = kmalloc_array(file_cnt, sizeof(int), GFP_NOFS);
+		if (!vals)
+			goto hot_free;
+
+		/* fill access counts */
+		{
+			struct inode_entry *ie;
+
+			list_for_each_entry(ie, &zlist.ilist, list) {
+				struct inode *inode = ie->inode;
+
+				if (!S_ISREG(inode->i_mode))
+					continue;
+				vals[idx++] =
+					atomic_read(&F2FS_I(inode)->i_access_count);
+			}
+		}
+		if (idx) {
+			unsigned int rank = (idx * HOT_GC_PERCENT) / 100;
+
+			if (rank == 0)
+				rank = 1;
+			if (rank > idx)
+				rank = idx;
+
+			sort(vals, idx, sizeof(int), hot_int_cmp_desc, NULL);
+			sm_info->zone_hot_thresh[zoneno] = vals[rank - 1];
+		}
+		kfree(vals);
+
+hot_free:
+		put_gc_inode(&zlist);
+hot_done:
+		;
+	}
+
 	/*
 	 * Debug output: for the zone just chosen as GC victim,
 	 * print its current zone_th, and also the zone_th of the
@@ -2424,32 +2543,8 @@ stop:
 	SIT_I(sbi)->last_victim[ALLOC_NEXT] = 0;
 	SIT_I(sbi)->last_victim[FLUSH_DEVICE] = init_segno;
 
+
 #if HOTNESS
-	/* update per-zone dynamic hotness thresholds based on this GC run */
-	{
-		struct f2fs_sm_info *sm_info = SM_I(sbi);
-		unsigned int total_zones = MAIN_SECS(sbi) / sbi->secs_per_zone;
-		unsigned int i;
-
-		for (i = 0; i < total_zones; i++) {
-			int minc, maxc, a;
-
-			if (!sm_info->zone_hot_seen[i])
-				continue;
-
-			minc = sm_info->zone_hot_min[i];
-			maxc = sm_info->zone_hot_max[i];
-			if (minc >= maxc) {
-				/* all hot samples similar: protect none next round */
-				a = maxc;
-			} else {
-				int span = maxc - minc;
-				a = minc + span * HOT_GC_PERCENT / 100;
-			}
-			sm_info->zone_hot_thresh[i] = a;
-		}
-	}
-
 	/*
 	 * For all inodes that were treated as hot during this GC run,
 	 * reset their access counters once here. This ensures that within
@@ -2703,6 +2798,7 @@ int f2fs_resize_fs(struct f2fs_sb_info *sbi, __u64 block_count)
 	if (block_count == old_block_count)
 		return 0;
 
+/*
 	if (is_sbi_flag_set(sbi, SBI_NEED_FSCK)) {
 		f2fs_err(sbi, "Should run fsck to repair first.");
 		return -EFSCORRUPTED;
@@ -2727,7 +2823,7 @@ int f2fs_resize_fs(struct f2fs_sb_info *sbi, __u64 block_count)
 	if (shrunk_blocks + valid_user_blocks(sbi) +
 		sbi->current_reserved_blocks + sbi->unusable_block_count +
 		F2FS_OPTION(sbi).root_reserved_blocks > sbi->user_block_count)
-		err = -ENOSPC;
+			err = -ENOSPC;
 	spin_unlock(&sbi->stat_lock);
 
 	if (err)
