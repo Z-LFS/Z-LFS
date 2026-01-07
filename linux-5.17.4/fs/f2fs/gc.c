@@ -2433,12 +2433,30 @@ hot_done:
 			z50 < total_zones && sm_info->zone_hot_thresh)
 			th50 = sm_info->zone_hot_thresh[z50];
 
+		/*
+		 * When deciding hot files, use the lowest hotness
+		 * threshold among zone_th, th25, th50 as the effective
+		 * zone_th for this zone.
+		 */
+		if (sm_info->zone_hot_thresh && zoneno < total_zones) {
+			int eff = zone_th;
+
+			if (th25 >= 0 && (eff < 0 || th25 < eff))
+				eff = th25;
+			if (th50 >= 0 && (eff < 0 || th50 < eff))
+				eff = th50;
+			if (eff >= 0)
+				sm_info->zone_hot_thresh[zoneno] = eff;
+			zone_th = eff;
+		}
+
 		f2fs_info(sbi,
 			"[%s:%d] GC zone=%u zone_th=%d, "
 			"zone_fifo_len=%u, z25=%u zone_th=%d, z50=%u zone_th=%d",
 			__func__, __LINE__,
 			zoneno, zone_th,
 			fifo_len, z25, th25, z50, th50);
+		
 	}
 #endif
 
