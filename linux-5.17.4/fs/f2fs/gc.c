@@ -1826,8 +1826,13 @@ next_step:
 #if HOTNESS
 			/* if file is hot, move data page */
 				int access = atomic_read(&fi->i_access_count);
-				int zone_th = sm_info->zone_hot_thresh ?
-						sm_info->zone_hot_thresh[zoneno] : 0;
+				int zone_th;
+
+				if (sbi->gc_effective_zone_th >= 0)
+					zone_th = sbi->gc_effective_zone_th;
+				else
+					zone_th = sm_info->zone_hot_thresh ?
+							sm_info->zone_hot_thresh[zoneno] : 0;
 
 				if ((access >= HOT_FILE_ACCESSED_THRESHOLD &&
 					access > zone_th) || !S_ISREG(inode->i_mode)) {
@@ -2434,20 +2439,60 @@ hot_done:
 			th50 = sm_info->zone_hot_thresh[z50];
 
 		/*
-		 * When deciding hot files, use the lowest hotness
-		 * threshold among zone_th, th25, th50 as the effective
-		 * zone_th for this zone.
+		 * When deciding hot files in this GC run, derive a
+		 * GC-only effective threshold from the distribution of
+		 * zone_hot_thresh across zones, instead of modifying
+		 * zone_hot_thresh[] itself.
 		 */
-		if (sm_info->zone_hot_thresh && zoneno < total_zones) {
+		if (sm_info->zone_hot_thresh && total_zones > 0) {
+			int *vals;
+			unsigned int i, cnt = 0;
 			int eff = zone_th;
+			unsigned int rank;
 
-			if (th25 >= 0 && (eff < 0 || th25 < eff))
-				eff = th25;
-			if (th50 >= 0 && (eff < 0 || th50 < eff))
-				eff = th50;
-			if (eff >= 0)
-				sm_info->zone_hot_thresh[zoneno] = eff;
-			zone_th = eff;
+			/*
+			 * Build a list of valid per-zone thresholds, sort them
+			 * in descending order (hot to cold), and pick the
+			 * HOT_GC_PERCENT-th hottest as the effective GC
+			 * threshold for this run.
+			 */
+			vals = kvmalloc_array(total_zones, sizeof(int), GFP_KERNEL);
+			if (vals) {
+				for (i = 0; i < total_zones; i++) {
+					int v = sm_info->zone_hot_thresh[i];
+
+					if (v < 0)
+						continue;
+					vals[cnt++] = v;
+				}
+
+				if (cnt > 0) {
+					/* sort hot to cold */
+					sort(vals, cnt, sizeof(int), hot_int_cmp_desc, NULL);
+					if (cnt == 1)
+						 eff = vals[0];
+					else {
+						/* percentile index in [1, cnt] */
+						rank = (HOT_GC_PERCENT * (cnt - 1)) / 100 + 1;
+						if (rank > cnt)
+							rank = cnt;
+						 eff = vals[rank - 1];
+					}
+				}
+
+				kvfree(vals);
+			}
+
+			if (eff >= 0) {
+				zone_th = eff;
+				/* store GC-only effective threshold */
+				sbi->gc_effective_zone_th = eff;
+			} else {
+				sbi->gc_effective_zone_th = -1;
+			}
+		} else {
+			/* no valid distribution, fall back */
+			sbi->gc_effective_zone_th = zone_th;
 		}
 
 		f2fs_info(sbi,

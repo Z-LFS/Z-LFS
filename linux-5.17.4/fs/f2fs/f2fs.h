@@ -1986,6 +1986,7 @@ struct f2fs_sb_info {
 	wait_queue_head_t cold_inode_wait_queue; /* wait queue for cold inode thread */
 	struct task_struct *cold_inode_task;	/* cold inode thread */
 	block_t cold_file_pending_blocks;	/* blocks of cold files queued for deletion */
+	int gc_effective_zone_th;		/* GC-only hotness threshold for current run */
 #endif
 };
 
