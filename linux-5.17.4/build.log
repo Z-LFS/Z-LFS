@@ -1,0 +1,112 @@
+  DESCEND objtool
+  DESCEND bpf/resolve_btfids
+  CALL    scripts/atomic/check-atomics.sh
+  CALL    scripts/checksyscalls.sh
+  CHK     include/generated/compile.h
+make[1]: *** 没有规则可制作目标“debian/canonical-certs.pem”，由“certs/x509_certificate_list” 需求。 停止。
+make[1]: *** 正在等待未完成的任务....
+make: *** [Makefile:1831：certs] 错误 2
+make: *** 正在等待未完成的任务....
+  CC [M]  fs/f2fs/namei.o
+  CC [M]  fs/f2fs/hash.o
+  CC [M]  fs/f2fs/super.o
+  CC [M]  fs/f2fs/inline.o
+  CC [M]  fs/f2fs/checkpoint.o
+  CC [M]  fs/f2fs/gc.o
+  CC [M]  fs/f2fs/data.o
+  CC [M]  fs/f2fs/node.o
+  CC [M]  fs/f2fs/segment.o
+  CC [M]  fs/f2fs/recovery.o
+  CC [M]  fs/f2fs/shrinker.o
+  CC [M]  fs/f2fs/extent_cache.o
+  CC [M]  fs/f2fs/sysfs.o
+make[2]: *** 没有规则可制作目标“fs/f2fs/calclock.o”，由“fs/f2fs/f2fs.o” 需求。 停止。
+make[2]: *** 正在等待未完成的任务....
+fs/f2fs/namei.c:26:9: fatal error: calclock.h: 没有那个文件或目录
+   26 | #include"calclock.h"
+      |         ^~~~~~~~~~~~
+compilation terminated.
+make[2]: *** [scripts/Makefile.build:288：fs/f2fs/namei.o] 错误 1
+fs/f2fs/checkpoint.c:31:10: fatal error: calclock.h: 没有那个文件或目录
+   31 | #include "calclock.h"
+      |          ^~~~~~~~~~~~
+compilation terminated.
+make[2]: *** [scripts/Makefile.build:288：fs/f2fs/checkpoint.o] 错误 1
+fs/f2fs/gc.c:28:10: fatal error: calclock.h: 没有那个文件或目录
+   28 | #include "calclock.h"
+      |          ^~~~~~~~~~~~
+compilation terminated.
+make[2]: *** [scripts/Makefile.build:288：fs/f2fs/gc.o] 错误 1
+fs/f2fs/data.c:36:10: fatal error: calclock.h: 没有那个文件或目录
+   36 | #include "calclock.h"
+      |          ^~~~~~~~~~~~
+compilation terminated.
+make[2]: *** [scripts/Makefile.build:288：fs/f2fs/data.o] 错误 1
+  CHK     kernel/kheaders_data.tar.xz
+  CC      fs/read_write.o
+  CC      fs/file_table.o
+  CC      fs/super.o
+  CC      fs/char_dev.o
+  CC      fs/stat.o
+  CC      fs/exec.o
+  CC      fs/pipe.o
+  CC      fs/namei.o
+  CC      fs/fcntl.o
+  CC      fs/ioctl.o
+  CC      fs/readdir.o
+  CC      fs/select.o
+  CC      fs/dcache.o
+  CC      fs/inode.o
+  CC      fs/attr.o
+  CC      fs/bad_inode.o
+  CC      fs/file.o
+  CC      fs/filesystems.o
+  CC      fs/namespace.o
+  CC      fs/seq_file.o
+  CC      fs/xattr.o
+  CC      fs/libfs.o
+  CC      fs/fs-writeback.o
+  CC      fs/pnode.o
+  CC      fs/splice.o
+  CC      fs/sync.o
+  CC      fs/utimes.o
+  CC      fs/d_path.o
+  CC      fs/stack.o
+  CC      fs/fs_struct.o
+  CC      fs/statfs.o
+  CC      fs/fs_pin.o
+  CC      fs/nsfs.o
+  CC      fs/fs_types.o
+  CC      fs/fs_context.o
+  CC      fs/fs_parser.o
+  CC      fs/fsopen.o
+  CC      fs/init.o
+  CC      fs/kernel_read_file.o
+  CC      fs/remap_range.o
+  CC      fs/buffer.o
+  CC      fs/direct-io.o
+  CC      fs/mpage.o
+  CC      fs/proc_namespace.o
+  CC      fs/eventpoll.o
+  CC      fs/anon_inodes.o
+  CC      fs/signalfd.o
+  CC      fs/timerfd.o
+  CC      fs/eventfd.o
+  CC      fs/userfaultfd.o
+  CC      fs/aio.o
+  CC      fs/io_uring.o
+  CC      fs/io-wq.o
+  CC      fs/dax.o
+  CC      fs/locks.o
+  CC      fs/binfmt_script.o
+  CC      fs/binfmt_elf.o
+  CC      fs/compat_binfmt_elf.o
+  CC      fs/mbcache.o
+  CC      fs/posix_acl.o
+  CC      fs/coredump.o
+  CC      fs/drop_caches.o
+  CC      fs/fhandle.o
+  CC [M]  fs/binfmt_misc.o
+make[1]: *** [scripts/Makefile.build:550：fs/f2fs] 错误 2
+make[1]: *** 正在等待未完成的任务....
+make: *** [Makefile:1831：fs] 错误 2

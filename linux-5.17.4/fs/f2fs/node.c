@@ -600,6 +600,7 @@ int f2fs_try_to_free_nats(struct f2fs_sb_info *sbi, int nr_shrink)
 	return nr - nr_shrink;
 }
 
+// 将得到的node信息放入到参数 node_info *ni 中
 int f2fs_get_node_info(struct f2fs_sb_info *sbi, nid_t nid,
 				struct node_info *ni, bool checkpoint_context)
 {
@@ -635,7 +636,9 @@ retry:
 	}
 
 #if META_FOR_ZNS //TODO read node page from log tree
+	// nat log 
 	//lock cache tree;
+	// down_read(&nm_i->nat_ltree_slock);
 #if DELAYED_MERGE
 	head = radix_tree_lookup(&nm_i->nat_log_root[nm_i->nat_ltree_idx], NAT_BLOCK_OFFSET(nid));
 #else
@@ -661,6 +664,7 @@ retry:
 		}
 	}
 	//unlock cache tree;
+	// up_read(&nm_i->nat_ltree_slock);
 #if DELAYED_MERGE
 	//search merge tree
 	down_read(&nm_i->nat_ltree_slock);
@@ -678,7 +682,7 @@ retry:
 				//printk("debug : get ni::nid(%u),ino(%u),blk_addr(%u)",
 				//		nid, ni->ino, ni->blk_addr);
 				up_read(&nm_i->nat_tree_lock);
-	      up_read(&nm_i->nat_ltree_slock);
+	      		up_read(&nm_i->nat_ltree_slock);
 				//unlock cache tree;
 				raw_nat_from_node_info(&ne, ni);
 				goto cache;
@@ -690,6 +694,7 @@ retry:
 
 #endif
 
+// 如果开启了 META_FOR_ZNS，nat/sit 就不会存在 journal 里
 #else
 
 	/*
@@ -707,7 +712,7 @@ retry:
 	}
 
 	i = f2fs_lookup_journal_in_cursum(journal, NAT_JOURNAL, nid, 0);
-	if (i >= 0) {
+	if (i >= 0) {  // found in journal
 		ne = nat_in_journal(journal, i);
 		node_info_from_raw_nat(ni, &ne);
 	}
@@ -718,25 +723,41 @@ retry:
 	}
 
 #endif
+	// 从磁盘读取 nat entry
 	/* Fill node_info from nat page */
+	// 计算 nat entry 所在的 nat block page 的 index
 	index = current_nat_addr(sbi, nid);
 	up_read(&nm_i->nat_tree_lock);
 
 	page = f2fs_get_meta_page(sbi, index);
-	if (IS_ERR(page))
+	// if (IS_ERR(page))
+	// 	return PTR_ERR(page);
+	if (IS_ERR(page)) {
+		printk("(%s:%d) f2fs_get_meta_page failed for nid=%u, index=%lu, err=%ld\n",
+			__func__, __LINE__, nid, index, PTR_ERR(page));
 		return PTR_ERR(page);
+	}
 
 	nat_blk = (struct f2fs_nat_block *)page_address(page);
 	ne = nat_blk->entries[nid - start_nid];
 	node_info_from_raw_nat(ni, &ne);
 	f2fs_put_page(page, 1);
 cache:
+	// 取到了nat entry，检查 blkaddr 合法性
 	blkaddr = le32_to_cpu(ne.block_addr);
+	// if (__is_valid_data_blkaddr(blkaddr) &&
+	// 	!f2fs_is_valid_blkaddr(sbi, blkaddr, DATA_GENERIC_ENHANCE))
+	// 	return -EFAULT;
 	if (__is_valid_data_blkaddr(blkaddr) &&
-		!f2fs_is_valid_blkaddr(sbi, blkaddr, DATA_GENERIC_ENHANCE))
+		!f2fs_is_valid_blkaddr(sbi, blkaddr, DATA_GENERIC_ENHANCE)) {
+		printk("(%s:%d] invalid blkaddr %u for nid %u\n",
+			__func__, __LINE__, blkaddr, nid);
 		return -EFAULT;
+	}
+		
 
 	/* cache nat entry */
+	// in nat_root
 	cache_nat_entry(sbi, nid, &ne);
 	return 0;
 }
@@ -801,6 +822,9 @@ pgoff_t f2fs_get_next_page_offset(struct dnode_of_data *dn, pgoff_t pgofs)
  * The maximum depth is four.
  * Offset[0] will have raw inode offset.
  */
+// 根据文件偏移量计算出所属的级别
+// offset[] 是“在这一层 node 里的第几个指针”；
+// noffset[] 表示逻辑上的 node address 空间编号（在整个 inode 的地址命名空间中的顺序号）【相对起始inode的node id】
 static int get_node_path(struct inode *inode, long block,
 				int offset[4], unsigned int noffset[4])
 {
@@ -880,6 +904,9 @@ got:
  * Also, it should grab and release a rwsem by calling f2fs_lock_op() and
  * f2fs_unlock_op() only if mode is set with ALLOC_NODE.
  */
+// 从 inode 出发，沿着 node tree（直接、间接、多级索引）
+// 找到指定逻辑页的 data block 所在的 node page，并返回相关信息。
+// 在找的过程中，会将路径上的node page都加载到内存(page cache)中
 int f2fs_get_dnode_of_data(struct dnode_of_data *dn, pgoff_t index, int mode)
 {
 	struct f2fs_sb_info *sbi = F2FS_I_SB(dn->inode);
@@ -891,6 +918,7 @@ int f2fs_get_dnode_of_data(struct dnode_of_data *dn, pgoff_t index, int mode)
 	int level, i = 0;
 	int err = 0;
 
+	// 根据文件偏移量计算出是在哪一级间接节点
 	level = get_node_path(dn->inode, index, offset, noffset);
 	if (level < 0)
 		return level;
@@ -898,12 +926,16 @@ int f2fs_get_dnode_of_data(struct dnode_of_data *dn, pgoff_t index, int mode)
 	nids[0] = dn->inode->i_ino;
 	npage[0] = dn->inode_page;
 
+	// 如果当前（第一级）ino的node page还没有被加载，就去加载它
+	// 也就是加载inode所在的node page
+	// 这个node page包含了直接索引和一级间接索引
 	if (!npage[0]) {
 		npage[0] = f2fs_get_node_page(sbi, nids[0]);
 		if (IS_ERR(npage[0]))
 			return PTR_ERR(npage[0]);
 	}
 
+	// 如果文件启用了 inline_data，且 index > 0，说明请求的数据不在单独的 block 中
 	/* if inline_data is set, should not report any block indices */
 	if (f2fs_has_inline_data(dn->inode) && index) {
 		err = -ENOENT;
@@ -922,6 +954,7 @@ int f2fs_get_dnode_of_data(struct dnode_of_data *dn, pgoff_t index, int mode)
 		bool done = false;
 
 		if (!nids[i] && mode == ALLOC_NODE) {
+			// 如果该层的 nid 为空，且允许分配，就新建 node
 			/* alloc new node */
 			if (!f2fs_alloc_nid(sbi, &(nids[i]))) {
 				err = -ENOSPC;
@@ -929,6 +962,7 @@ int f2fs_get_dnode_of_data(struct dnode_of_data *dn, pgoff_t index, int mode)
 			}
 
 			dn->nid = nids[i];
+			// 创建node page cache
 			npage[i] = f2fs_new_node_page(dn, noffset[i]);
 			if (IS_ERR(npage[i])) {
 				f2fs_alloc_nid_failed(sbi, nids[i]);
@@ -2513,6 +2547,7 @@ static int scan_nat_page(struct f2fs_sb_info *sbi,
 	return 0;
 }
 
+// Scan current segment's journal to add/reomve free nids
 static void scan_curseg_cache(struct f2fs_sb_info *sbi)
 {
 	struct curseg_info *curseg = CURSEG_I(sbi, CURSEG_HOT_DATA);
@@ -2975,6 +3010,8 @@ int f2fs_restore_node_summary(struct f2fs_sb_info *sbi,
 }
 
 #if !META_FOR_ZNS
+// nat journal => nat cache
+// 将日志中的 NAT 条目转移到 NAT 缓存中，并标记为脏，为后续刷写到 NAT 区域做准备
 static void remove_nats_in_journal(struct f2fs_sb_info *sbi)
 {
 	struct f2fs_nm_info *nm_i = NM_I(sbi);
@@ -2986,13 +3023,16 @@ static void remove_nats_in_journal(struct f2fs_sb_info *sbi)
 	for (i = 0; i < nats_in_cursum(journal); i++) {
 		struct nat_entry *ne;
 		struct f2fs_nat_entry raw_ne;
+		// node id
 		nid_t nid = le32_to_cpu(nid_in_journal(journal, i));
 
 		if (f2fs_check_nid_range(sbi, nid))
 			continue;
 
+		// nat entry
 		raw_ne = nat_in_journal(journal, i);
 
+		// add to nm_i->nat_root
 		ne = __lookup_nat_cache(nm_i, nid);
 		if (!ne) {
 			ne = __alloc_nat_entry(sbi, nid, true);
@@ -3117,13 +3157,13 @@ static void insert_nat_log_tree(struct f2fs_sb_info *sbi,
 
 	struct nat_entry *new;
 	
-	//printk("(%s : %d) insert nat entry of nid :%u", __func__, __LINE__, nat_get_nid(ne));
+	// printk("(%s : %d) insert nat entry of nid :%u", __func__, __LINE__, nat_get_nid(ne));
 	new = __alloc_nat_entry(sbi, nat_get_nid(ne), true);
 	copy_node_info(&new->ni, &ne->ni);
 	
 	//no lookup log tree 
 	__insert_nat_log_set(NM_I(sbi), new);
-	//printk("(%s : %d) insert nat entry of nid :%u", __func__, __LINE__, nat_get_nid(ne));
+	// printk("[insert_nat_log_tree()] (%s : %d) insert nat entry of nid :%u", __func__, __LINE__, nat_get_nid(ne));
 }
 
 static inline void clean_nat_log_set(struct f2fs_sb_info *sbi,
@@ -3376,6 +3416,7 @@ static int __flush_nat_entry_set(struct f2fs_sb_info *sbi,
 				}
 				f2fs_put_page(page, 0);
 
+			// 如果当前的log放不下，则分配一个
 			if (!has_curlog_space(sbi, 1, NAT_LOG))	{
 				// prepare merge
 				printk("(%s:%d) set merge flag", __func__, __LINE__);
@@ -3387,8 +3428,8 @@ static int __flush_nat_entry_set(struct f2fs_sb_info *sbi,
 				//set_ckpt_flags(sbi, CP_NAT_MERGE_FLAG);
 				// switch log tree;
 				cpc->merge = cpc->merge | 0x2;
-				NM_I(sbi)->cur_nat_log ^= 0x1;
-				NM_I(sbi)->nat_blks_in_log = 0;
+				NM_I(sbi)->cur_nat_log ^= 0x1; 	// 切换log zone，反复用那两个log
+				NM_I(sbi)->nat_blks_in_log = 0; // 当前log中的entry数置为0
 				printk("(%s:%d) nat merge done", __func__, __LINE__);
 			}
 
@@ -3525,8 +3566,13 @@ int f2fs_flush_nat_entries(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 
 	up_write(&nm_i->nat_tree_lock);
 	/* Allow dirty nats by node block allocation in write_begin */
-	if(fg_merge)
+	if(fg_merge) {
+		down_read(&NM_I(sbi)->nat_ltree_slock);
+		printk("(%s : %d) merge nat [by tt]", __func__, __LINE__);
 		err = merge_nat(sbi, 1);
+		up_read(&NM_I(sbi)->nat_ltree_slock);
+	}
+		
 
 	f2fs_submit_merged_write(sbi, META);
 
@@ -3542,6 +3588,9 @@ static int __flush_nat_entry_set(struct f2fs_sb_info *sbi,
 	bool merge = false;
 	unsigned int offset = 0;
 	
+	// 当开启META_FOR_ZNS时，从判断curseg->journal空间是否足够
+	// 改为判断nat log空间是否足够
+	// 当delta log满了，就会触发delta log和MD的merge操作
 	if((cpc->reason & CP_UMOUNT) ||
 			!has_curlog_space(sbi, NM_I(sbi)->nat_cnt[DIRTY_NAT], NAT_LOG))
 		merge = true;
@@ -3585,6 +3634,7 @@ static int __flush_nat_entry_set(struct f2fs_sb_info *sbi,
 				}
 				f2fs_put_page(page, 0);
 
+				// 用完了一个log page, 需要再分配一个nat log page
 				page = get_next_log_page(sbi, NAT_LOG);
 				if(!page){
 					printk("(%s : %d) error : failed to get next log page", __func__, __LINE__);
@@ -3596,14 +3646,17 @@ static int __flush_nat_entry_set(struct f2fs_sb_info *sbi,
 
 				raw_nat_log = page_address(page);
 				f2fs_bug_on(sbi, !raw_nat_log);
+				// 置0，表示刚开始写入这个log page
 				offset = 0;
 			}
+			// 更新nat set entry到nat log page
 			raw_ne = &nat_in_log(raw_nat_log, offset);
 			nid_in_log(raw_nat_log, offset) = cpu_to_le32(nid);
 			raw_nat_from_node_info(raw_ne, &ne->ni);
 
 			offset++;
 		}
+		// 将这个nat entry从nat set中删除
 		nat_reset_flag(ne);
 		__clear_nat_cache_dirty(NM_I(sbi), set, ne);
 
@@ -3616,9 +3669,11 @@ static int __flush_nat_entry_set(struct f2fs_sb_info *sbi,
 		}
 
 		//insert nat log cache entry - reference: set_node_addr()
+		// nat_log_root
 		insert_nat_log_tree(sbi, ne);
 	}
 
+	// 【TODO251122】感觉下面这个if条件应该放在list循环中
 	if(!merge){
 		raw_nat_log->n_nats = cpu_to_le16(offset);
 		if(!clear_page_dirty_for_io(page)){
@@ -3684,8 +3739,13 @@ int f2fs_flush_nat_entries(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 
 	up_write(&nm_i->nat_tree_lock);
 	/* Allow dirty nats by node block allocation in write_begin */
-	if(merge)
-		err = merge_nat(sbi);
+	// if(merge)
+	// 	err = merge_nat(sbi);
+	if(merge) {
+		down_read(&NM_I(sbi)->nat_ltree_slock);
+		err = merge_nat(sbi, 1);
+		up_read(&NM_I(sbi)->nat_ltree_slock);
+	}
 
 	f2fs_submit_merged_write(sbi, META);
 
@@ -3693,6 +3753,9 @@ int f2fs_flush_nat_entries(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 }
 #endif /* DELAYED_MERGE */
 #else
+/*
+ * 将nat_entry_set (nat_set_root) 对应的nat_entry信息，写入到curseg->journal中
+ */
 static int __flush_nat_entry_set(struct f2fs_sb_info *sbi,
 		struct nat_entry_set *set, struct cp_control *cpc)
 {
@@ -3709,6 +3772,7 @@ static int __flush_nat_entry_set(struct f2fs_sb_info *sbi,
 	 * #1, flush nat entries to journal in current hot data summary block.
 	 * #2, flush nat entries to nat page.
 	 */
+	/* 当journal空间不够了，就刷写到磁盘中 */
 	if ((cpc->reason & CP_UMOUNT) ||
 		!__has_cursum_space(journal, set->entry_cnt, NAT_JOURNAL))
 		to_journal = false;
@@ -3716,6 +3780,8 @@ static int __flush_nat_entry_set(struct f2fs_sb_info *sbi,
 	if (to_journal) {
 		down_write(&curseg->journal_rwsem);
 	} else {
+		/* 根据nid找到管理这个nid的f2fs_nat_block */
+		// 如果不在内存中，就把nat block提到内存中
 		page = get_next_nat_page(sbi, start_nid);
 		if (IS_ERR(page))
 			return PTR_ERR(page);
@@ -3733,16 +3799,20 @@ static int __flush_nat_entry_set(struct f2fs_sb_info *sbi,
 		f2fs_bug_on(sbi, nat_get_blkaddr(ne) == NEW_ADDR);
 
 		if (to_journal) {
+			// 搜索当前的journal中nid所在的位置
 			offset = f2fs_lookup_journal_in_cursum(journal,
 							NAT_JOURNAL, nid, 1);
 			f2fs_bug_on(sbi, offset < 0);
+			// 从journal中取出f2fs_nat_entry的信息
 			raw_ne = &nat_in_journal(journal, offset);
 			nid_in_journal(journal, offset) = cpu_to_le32(nid);
 		} else {
 			raw_ne = &nat_blk->entries[nid - start_nid];
 		}
+		// 更新nat journal或者nat block中的nat entry信息
 		raw_nat_from_node_info(raw_ne, &ne->ni);
 		nat_reset_flag(ne);
+		// 清除nat cache中的dirty标志
 		__clear_nat_cache_dirty(NM_I(sbi), set, ne);
 		if (nat_get_blkaddr(ne) == NULL_ADDR) {
 			add_free_nid(sbi, nid, false, true);
@@ -3954,6 +4024,11 @@ static int init_node_manager(struct f2fs_sb_info *sbi)
 	mutex_init(&nm_i->build_lock);
 	spin_lock_init(&nm_i->nid_list_lock);
 	init_rwsem(&nm_i->nat_tree_lock);
+#if META_FOR_ZNS
+#if DELAYED_MERGE
+	init_rwsem(&nm_i->nat_ltree_slock);
+#endif
+#endif
 
 	nm_i->next_scan_nid = le32_to_cpu(sbi->ckpt->next_free_nid);
 	nm_i->bitmap_size = __bitmap_size(sbi, NAT_BITMAP);
@@ -4069,6 +4144,26 @@ void f2fs_destroy_node_manager(struct f2fs_sb_info *sbi)
 		kmem_cache_free(free_nid_slab, i);
 		spin_lock(&nm_i->nid_list_lock);
 	}
+#if HOTNESS
+	while (1) {
+		struct free_nid *nidvec[NATVEC_SIZE];
+		unsigned int found;
+		unsigned int idx;
+
+		found = radix_tree_gang_lookup(&nm_i->free_nid_root,
+					(void **)nidvec, 0, NATVEC_SIZE);
+		if (!found)
+			break;
+
+		for (idx = 0; idx < found; idx++) {
+			i = nidvec[idx];
+			__remove_free_nid(sbi, i, i->state);
+			spin_unlock(&nm_i->nid_list_lock);
+			kmem_cache_free(free_nid_slab, i);
+			spin_lock(&nm_i->nid_list_lock);
+		}
+	}
+#endif
 	f2fs_bug_on(sbi, nm_i->nid_cnt[FREE_NID]);
 	f2fs_bug_on(sbi, nm_i->nid_cnt[PREALLOC_NID]);
 	f2fs_bug_on(sbi, !list_empty(&nm_i->free_nid_list));

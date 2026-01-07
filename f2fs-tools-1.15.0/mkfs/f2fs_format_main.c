@@ -338,6 +338,7 @@ static void f2fs_parse_options(int argc, char *argv[])
 	}
 
 	/* [0] : META, [1 to MAX_DEVICES - 1] : NODE/DATA */
+	// 设置设备路径
 	c.devices[0].path = strdup(argv[optind]);
 
 	if ((optind + 1) < argc) {
@@ -447,6 +448,7 @@ int main(int argc, char *argv[])
 	if (f2fs_get_device_info() < 0)
 		return -1;
 
+	// 检查设备是否已经格式化过某个文件系统，如有，需要强制覆盖写
 	if (f2fs_check_overwrite()) {
 
 		if (!force_overwrite) {
@@ -481,6 +483,7 @@ int main(int argc, char *argv[])
 			goto err_format;
 #endif
 	}
+	// 输出f2fs信息：确定zone:sector:segment之间的比例关系
 	if (f2fs_get_f2fs_info() < 0)
 		goto err_format;
 

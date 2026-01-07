@@ -12,6 +12,7 @@
 #include <linux/statfs.h>
 #include <linux/buffer_head.h>
 #include <linux/kthread.h>
+#include <linux/freezer.h>
 #include <linux/parser.h>
 #include <linux/mount.h>
 #include <linux/seq_file.h>
@@ -260,7 +261,7 @@ static void reclaim_zones(struct f2fs_sb_info *sbi, struct curseg_info *curseg) 
   if (curseg->reclaimable_start != curseg->reclaimable_end) {
     while (curseg->reclaimable_start != curseg->reclaimable_end) {
       spin_lock(&curseg->reclaimable_lock);
-      //printk("(%s:%d) reclaim zones", __func__, __LINE__);
+      printk("(%s:%d) reclaim zones", __func__, __LINE__);
       segno = curseg->reclaimable_zones[curseg->reclaimable_start];
       curseg->reclaimable_start++;
       segno = GET_SEG_FROM_SEC(sbi, GET_SEC_FROM_SEG(sbi, segno));
@@ -334,8 +335,8 @@ int f2fs_monitor_func(void *data){
   unsigned int opened = 0;
   
   
-  unsigned int max_total_wanted = (2 * IG_SIZE * IG_NR + 4 * IG_SIZE) / IG_SIZE;
-  unsigned int max_wanted_size =  128 / IG_SIZE;//16; // 128
+  unsigned int max_total_wanted = (2 * IG_SIZE * IG_NR + 4 * IG_SIZE) / IG_SIZE; //=>2*8+4=20
+  unsigned int max_wanted_size =  128 / IG_SIZE;//16; // 128 //=>8
 //  int min_wanted_size = 1; // 1
   int min_wanted_size = 1; // 1
   
@@ -404,6 +405,7 @@ int f2fs_monitor_func(void *data){
     for (i = 0; i < 6; i++) {
 
       if (IS_DATASEG(i)){
+		// target_wanted是指target_wanted IGs
         target_wanted = calc_target_wanted(active_data_log,
           f2fs_monitor_pages[i], data_pages); 
       } else {
@@ -414,11 +416,13 @@ int f2fs_monitor_func(void *data){
       if (target_wanted == -1) {
         target_wanted = prev_target[i];
       } else {
+		// 如果不是-1，赋值
         prev_target[i] = target_wanted;
       }
 
       //adjust target wanted to maximize parallelism
       target_wanted_sum += prev_target[i];
+	  // 找到最intensive的log
       if (intensive_log_pages < f2fs_monitor_pages[i]) {
         intensive_log = i;
         intensive_log_pages = f2fs_monitor_pages[i];
@@ -436,7 +440,7 @@ int f2fs_monitor_func(void *data){
         printk("adjust: %d, %d", target_wanted_sum, intensive_log);
 */
         if (active_data_log > 1 && target_wanted_sum < IG_NR) {
-          prev_target[intensive_log] += (IG_NR - target_wanted_sum);
+          prev_target[intensive_log] += (IG_NR - target_wanted_sum); // 将剩余的都给最intensive的log
         }
         intensive_log = 3;
         intensive_log_pages = 0;
@@ -450,6 +454,7 @@ int f2fs_monitor_func(void *data){
         target_wanted_sum = 0;
       }
 
+	  // 统计量清0
       f2fs_monitor_pages[i] = 0;
     }
 
@@ -457,22 +462,26 @@ int f2fs_monitor_func(void *data){
     for (i = 0; i < 6; i++) {
       curseg = CURSEG_I(sbi, i);
       if (prev_target[i] > curseg->wanted_size) {
+		// scale up
         decisions[i] = 1;
       } else if (prev_target[i] ==  curseg->wanted_size) {
+		// no change
         decisions[i] = 0;
       } else {
+		// scale down
         decisions[i] = -1;
       }
     }
 
+	// reset active log count
     active_data_log = 0;
     active_node_log = 0;
 
 // for debugging
-/*
-    printk("(%s:%d) decisions %d %d %d %d %d %d", __func__,__LINE__,
+
+    printk("(%s:%d) scale up/down decisions %d %d %d %d %d %d", __func__,__LINE__,
       decisions[0],decisions[1],decisions[2],decisions[3],decisions[4],decisions[5]);
-*/
+
     for (j = 0; j < 6; j++) {
 
       curseg = CURSEG_I(sbi, j);
@@ -531,7 +540,7 @@ int f2fs_monitor_func(void *data){
       }
 
     }
-/*
+
     printk("opened: %u wanted: %u %u %u %u %u %u",
       opened, 
       CURSEG_I(sbi, CURSEG_HOT_DATA)->wanted_size,
@@ -541,7 +550,7 @@ int f2fs_monitor_func(void *data){
       CURSEG_I(sbi, CURSEG_WARM_NODE)->wanted_size,
       CURSEG_I(sbi, CURSEG_COLD_NODE)->wanted_size
     );
-*/
+
     msleep(time_ms);
   }
   return 0;
@@ -556,18 +565,18 @@ int f2fs_start_monitor_thread(struct f2fs_sb_info *sbi)
   sbi->monitor_thread = kthread_run(f2fs_monitor_func, sbi, "f2fs_monitor"); 
 
   if (IS_ERR(sbi->monitor_thread)) {
-    //printk("(%s : %d) start monitor thread failed", __func__, __LINE__);
+    printk("(%s : %d) start monitor thread failed", __func__, __LINE__);
     sbi->monitor_thread = NULL;
     return -ENOMEM;
   }
 
-//  printk("(%s : %d) start monitor thread success", __func__, __LINE__);
+ printk("(%s : %d) start monitor thread success", __func__, __LINE__);
   return 0;
 }
 
 void f2fs_stop_monitor_thread(struct f2fs_sb_info *sbi)
 {
-//  printk("(%s : %d) stop monitor thread", __func__, __LINE__);
+ printk("(%s : %d) stop monitor thread", __func__, __LINE__);
   if (sbi->monitor_thread) {
     kthread_stop(sbi->monitor_thread);
   }
@@ -1872,6 +1881,9 @@ static void f2fs_put_super(struct super_block *sb)
 	 * flush all issued checkpoints and stop checkpoint issue thread.
 	 * after then, all checkpoints should be done by each process context.
 	 */
+#if HOTNESS
+	f2fs_stop_cold_file_thread(sbi);
+#endif
 	f2fs_stop_ckpt_thread(sbi);
 #if DELAYED_MERGE
 #if !NAIVE_MFZ
@@ -2082,6 +2094,15 @@ static int f2fs_statfs(struct dentry *dentry, struct kstatfs *buf)
 	buf->f_blocks = total_count - start_count;
 	buf->f_bfree = user_block_count - valid_user_blocks(sbi) -
 						sbi->current_reserved_blocks;
+
+// #if HOTNESS
+// 	if (printk_ratelimit()) {
+// 		f2fs_info(sbi, "[%s:%d] user %u, valid %u, reserved %u, bfree %llu",
+// 			__func__, __LINE__,
+// 			user_block_count, valid_user_blocks(sbi),
+// 			sbi->current_reserved_blocks, buf->f_bfree);
+// 	}
+// #endif
 
 	spin_lock(&sbi->stat_lock);
 	if (unlikely(buf->f_bfree <= sbi->unusable_block_count))
@@ -3491,7 +3512,7 @@ static inline bool sanity_check_area_boundary(struct f2fs_sb_info *sbi,
 #if META_FOR_ZNS
 	u32 sit_log_blkaddr = le32_to_cpu(raw_super->sit_log_blkaddr);
 	u32 nat_log_blkaddr = le32_to_cpu(raw_super->nat_log_blkaddr);
-	u32 sum_log_blkaddr = le32_to_cpu(raw_super->sum_log_blkaddr);
+	u32 ssa_log_blkaddr = le32_to_cpu(raw_super->ssa_log_blkaddr);
 	u32 segment_count_sit_log = le32_to_cpu(raw_super->segment_count_sit_log);
 	u32 segment_count_nat_log = le32_to_cpu(raw_super->segment_count_nat_log);
 	u32 segment_count_ssa_log = le32_to_cpu(raw_super->segment_count_ssa_log);
@@ -3528,23 +3549,23 @@ static inline bool sanity_check_area_boundary(struct f2fs_sb_info *sbi,
 	}
 
 	if (nat_log_blkaddr + (segment_count_nat_log << log_blocks_per_seg) !=
-							sum_log_blkaddr) {
+							ssa_log_blkaddr) {
 		f2fs_info(sbi, "Wrong NAT log area boundary, start(%u) end(%u) blocks(%u)",
-			  nat_log_blkaddr, sum_log_blkaddr,
+			  nat_log_blkaddr, ssa_log_blkaddr,
 			  segment_count_nat_log << log_blocks_per_seg);
 		bound_err = 1;
 	}
 	
 #if GRID_STRIPE
-	if ((sum_log_blkaddr + (segment_count_ssa_log << log_blocks_per_seg)) >
+	if ((ssa_log_blkaddr + (segment_count_ssa_log << log_blocks_per_seg)) >
 							main_blkaddr) {
     printk("GRID_STRIPE");
 #else
-	if ((sum_log_blkaddr + (segment_count_ssa_log << log_blocks_per_seg)) !=
+	if ((ssa_log_blkaddr + (segment_count_ssa_log << log_blocks_per_seg)) !=
 							main_blkaddr) {
 #endif
 		f2fs_info(sbi, "Wrong SSA log area boundary, start(%u) end(%u) blocks(%u)",
-			  sum_log_blkaddr, main_blkaddr,
+			  ssa_log_blkaddr, main_blkaddr,
 			  segment_count_ssa_log << log_blocks_per_seg);
 		bound_err=1;
 	}
@@ -3617,10 +3638,11 @@ static int sanity_check_raw_super(struct f2fs_sb_info *sbi,
 	block_t segment_count, segs_per_sec, secs_per_zone, segment_count_main;
 	block_t total_sections, blocks_per_seg;
 	struct f2fs_super_block *raw_super = (struct f2fs_super_block *)
-					(bh->b_data + F2FS_SUPER_OFFSET);
+					(bh->b_data + F2FS_SUPER_OFFSET); // 向后偏移1024字节才是super block
 	size_t crc_offset = 0;
 	__u32 crc = 0;
 
+	// 检查magic number
 	if (le32_to_cpu(raw_super->magic) != F2FS_SUPER_MAGIC) {
 		f2fs_info(sbi, "Magic Mismatch, valid(0x%x) - read(0x%x)",
 			  F2FS_SUPER_MAGIC, le32_to_cpu(raw_super->magic));
@@ -3652,6 +3674,7 @@ static int sanity_check_raw_super(struct f2fs_sb_info *sbi,
 	}
 
 	/* check log blocks per segment */
+	// 每个segment512个block
 	if (le32_to_cpu(raw_super->log_blocks_per_seg) != 9) {
 		f2fs_info(sbi, "Invalid log blocks per segment (%u)",
 			  le32_to_cpu(raw_super->log_blocks_per_seg));
@@ -3693,8 +3716,8 @@ static int sanity_check_raw_super(struct f2fs_sb_info *sbi,
 
 	if (total_sections > segment_count_main || total_sections < 1 ||
 			segs_per_sec > segment_count || !segs_per_sec) {
-		f2fs_info(sbi, "Invalid segment/section count (%u, %u x %u)",
-			  segment_count, total_sections, segs_per_sec);
+		f2fs_info(sbi, "Invalid segment/section count (%u, %u x %u), segment_count_main: %u",
+			  segment_count, total_sections, segs_per_sec, segment_count_main);
 		return -EFSCORRUPTED;
 	}
 
@@ -3716,6 +3739,8 @@ static int sanity_check_raw_super(struct f2fs_sb_info *sbi,
 		return -EFSCORRUPTED;
 	}
 
+	// 只有c.ndevs > 1时，sb->devs[i].path才会在mkfs时被写入值
+	// 单设备时，后面直接使用 sb->s_bdev 作为设备，不依赖 raw_super->devs[]
 	if (RDEV(0).path[0]) {
 		block_t dev_seg_count = le32_to_cpu(RDEV(0).total_segments);
 		int i = 1;
@@ -3728,6 +3753,9 @@ static int sanity_check_raw_super(struct f2fs_sb_info *sbi,
 			f2fs_info(sbi, "Segment count (%u) mismatch with total segments from devices (%u)",
 					segment_count, dev_seg_count);
 			return -EFSCORRUPTED;
+		} else {
+			f2fs_info(sbi, "sbi Segment count (%u) matches with total segments from devices (%u)",
+					segment_count, dev_seg_count);
 		}
 	} else {
 		if (__F2FS_HAS_FEATURE(raw_super, F2FS_FEATURE_BLKZONED) &&
@@ -3957,6 +3985,9 @@ static void init_sb_info(struct f2fs_sb_info *sbi)
 	sbi->blocks_per_seg = 1 << sbi->log_blocks_per_seg;
 	sbi->segs_per_sec = le32_to_cpu(raw_super->segs_per_sec);
 #if SEP_SSA
+// 虽然sbi->blocks_per_seg仍然是512，但是sbi->segs_per_sec有所变化
+// 最初sbi->segs_per_sec = 1024, sbi->blocks_per_seg = 512
+// sbi->segs_per_sec = (1024 * 512) / (512 + 1) = 1022
   sbi->segs_per_sec = (sbi->segs_per_sec * sbi->blocks_per_seg)
                     / (sbi->blocks_per_seg + 1);
 #endif
@@ -4006,7 +4037,7 @@ static void init_sb_info(struct f2fs_sb_info *sbi)
 	init_rwsem(&sbi->pin_sem);
 }
 
-static int init_percpu_info(struct f2fs_sb_info *sbi)
+static int  init_percpu_info(struct f2fs_sb_info *sbi)
 {
 	int err;
 
@@ -4120,7 +4151,9 @@ static int read_raw_super_block(struct f2fs_sb_info *sbi,
 	if (!super)
 		return -ENOMEM;
 
+	// 读出两个 superblock 备份，检查其有效性
 	for (block = 0; block < 2; block++) {
+		// block 0 和 1 分别存放两个 superblock 备份
 		bh = sb_bread(sb, block);
 		if (!bh) {
 			f2fs_err(sbi, "Unable to read %dth superblock",
@@ -4205,9 +4238,12 @@ static int f2fs_scan_devices(struct f2fs_sb_info *sbi)
 	int i;
 
 	/* Initialize single device information */
+	// 如果 superblock 中没有配置多设备路径（RDEV(0).path 为空），那就是单设备挂载。
+	// 如果设备是 zoned（ZNS），则允许继续挂载，并将 max_devices = 1。
 	if (!RDEV(0).path[0]) {
 		if (!bdev_is_zoned(sbi->sb->s_bdev))
 			return 0;
+		pr_info("[f2fs_scan_devices]: max_devices = 1. by tt\n");
 		max_devices = 1;
 	}
 
@@ -4235,11 +4271,19 @@ static int f2fs_scan_devices(struct f2fs_sb_info *sbi)
 			FDEV(0).bdev =
 				blkdev_get_by_dev(sbi->sb->s_bdev->bd_dev,
 					sbi->sb->s_mode, sbi->sb->s_type);
-		} else {
+			
+			pr_info("[f2fs_scan_devices]: Single zoned block device mount. device%d: total_segments=%u ---ttt111g\n", i, FDEV(i).total_segments);
+			FDEV(i).total_segments =
+				le32_to_cpu(RDEV(i).total_segments);
+			pr_info("[f2fs_scan_devices]: Single zoned block device mount. device%d: total_segments=%u ---ttt222g\n", i, FDEV(i).total_segments);
+
+		} else { 
 			/* Multi-device mount */
+			//【TODO251125】多设备挂载
 			memcpy(FDEV(i).path, RDEV(i).path, MAX_PATH_LEN);
 			FDEV(i).total_segments =
 				le32_to_cpu(RDEV(i).total_segments);
+			pr_info("[f2fs_scan_devices]: Multi-device mount. device%d: total_segments=%u ---ttt\n", i, FDEV(i).total_segments);
 			if (i == 0) {
 				FDEV(i).start_blk = 0;
 				FDEV(i).end_blk = FDEV(i).start_blk +
@@ -4252,6 +4296,7 @@ static int f2fs_scan_devices(struct f2fs_sb_info *sbi)
 					(FDEV(i).total_segments <<
 					sbi->log_blocks_per_seg) - 1;
 			}
+			pr_info("[f2fs_scan_devices]: Multi-device mount. device%d: %s, total_segments:%u, start_blk=%u, end_blk=%u ---ttt\n", i, FDEV(i).path, FDEV(i).total_segments, FDEV(i).start_blk, FDEV(i).end_blk);
 			FDEV(i).bdev = blkdev_get_by_path(FDEV(i).path,
 					sbi->sb->s_mode, sbi->sb->s_type);
 		}
@@ -4379,8 +4424,14 @@ static int f2fs_check_meta_boundary(struct f2fs_sb_info *sbi)
 			  segment_count_ckpt << log_blocks_per_seg,
 			  blocks_needed(sbi, segment_count_ckpt));
 		return -1;
+	} else {
+		f2fs_info(sbi, "Right CP boundary, start(%u) end(%u) blocks(%u) blocks needed(%u)",
+			  cp_blkaddr, sit_blkaddr,
+			  segment_count_ckpt << log_blocks_per_seg,
+			  blocks_needed(sbi, segment_count_ckpt));
 	}
 
+	// segment_count_sit��������Ľ��: set_sb(segment_count_sit, sit_segments * 2);
 	if (sit_blkaddr + blocks_needed(sbi, segment_count_sit) !=
 							nat_blkaddr) {
 		f2fs_info(sbi, "Wrong SIT boundary, start(%u) end(%u) blocks(%u), blocks needed(%u)",
@@ -4388,6 +4439,11 @@ static int f2fs_check_meta_boundary(struct f2fs_sb_info *sbi)
 			  segment_count_sit << log_blocks_per_seg,
 			  blocks_needed(sbi, segment_count_sit));
 		return -1;
+	} else {
+		f2fs_info(sbi, "Right SIT boundary, start(%u) end(%u) blocks(%u), blocks needed(%u)",
+			  sit_blkaddr, nat_blkaddr,
+			  segment_count_sit << log_blocks_per_seg,
+			  blocks_needed(sbi, segment_count_sit));
 	}
 
 	if (nat_blkaddr + blocks_needed(sbi, segment_count_nat) !=
@@ -4397,6 +4453,11 @@ static int f2fs_check_meta_boundary(struct f2fs_sb_info *sbi)
 			  segment_count_nat << log_blocks_per_seg,
 			  blocks_needed(sbi, segment_count_nat));
 		return -1;
+	} else {
+		f2fs_info(sbi, "Right NAT boundary, start(%u) end(%u) blocks(%u), blocks_needed(%u)",
+			  nat_blkaddr, ssa_blkaddr,
+			  segment_count_nat << log_blocks_per_seg,
+			  blocks_needed(sbi, segment_count_nat));
 	}
 
 	if (ssa_blkaddr + blocks_needed(sbi, segment_count_ssa) !=
@@ -4406,14 +4467,164 @@ static int f2fs_check_meta_boundary(struct f2fs_sb_info *sbi)
 			  segment_count_ssa << log_blocks_per_seg,
 			  blocks_needed(sbi, segment_count_ssa));
 		return -1;
+	} else {
+		f2fs_info(sbi, "Right SSA boundary, start(%u) end(%u) blocks(%u), blocks needed(%u)",
+			  ssa_blkaddr, sit_log_blkaddr,
+			  segment_count_ssa << log_blocks_per_seg,
+			  blocks_needed(sbi, segment_count_ssa));
 	}
 	return 0;
 }
 #endif
+#if HOTNESS
+/**
+ * super_block: 由 VFS 在 sget() 或 sget_fc() 里新建的。
+ * data: 用户在挂载文件系统时指定的选项。
+ * silent: 静默模式标志。如果为非零值，则禁止打印错误信息。
+ */
+static int f2fs_cold_file_thread_func(void *data)
+{
+	struct f2fs_sb_info *sbi = data;
+	struct cold_inode_entry *entry;
+	struct inode *inode, *dir;
+	struct f2fs_dir_entry *de;
+	struct page *page;
+	nid_t pino;
+	int err;
+
+	set_freezable();
+
+	while (!kthread_should_stop()) {
+		wait_event_interruptible(sbi->cold_inode_wait_queue,
+			!list_empty(&sbi->cold_inode_list) || kthread_should_stop());
+
+		if (kthread_should_stop())
+			break;
+
+		spin_lock(&sbi->cold_inode_lock);
+		if (list_empty(&sbi->cold_inode_list)) {
+			spin_unlock(&sbi->cold_inode_lock);
+			continue;
+		}
+		entry = list_first_entry(&sbi->cold_inode_list,
+					struct cold_inode_entry, list);
+		list_del(&entry->list);
+		spin_unlock(&sbi->cold_inode_lock);
+
+		// f2fs_info(sbi, "Cold file thread: processing nid %u", entry->nid);
+
+		inode = f2fs_iget(sbi->sb, entry->nid);
+		if (IS_ERR(inode)) {
+			f2fs_err(sbi, "Failed to get cold inode %u", entry->nid);
+			spin_lock(&sbi->cold_inode_lock);
+			sbi->cold_file_pending_blocks -= entry->blocks;
+			spin_unlock(&sbi->cold_inode_lock);
+			kfree(entry);
+			continue;
+		}
+
+		/*
+		 * The cold file thread should only delete regular files.
+		 * Directories and other special files must be preserved.
+		 */
+		if (!S_ISREG(inode->i_mode)) {
+			iput(inode);
+			continue;
+		}
+
+		pino = F2FS_I(inode)->i_pino;
+		dir = f2fs_iget(sbi->sb, pino);
+		if (IS_ERR(dir)) {
+			f2fs_err(sbi, "Failed to get parent inode %u", pino);
+			iput(inode);
+			spin_lock(&sbi->cold_inode_lock);
+			sbi->cold_file_pending_blocks -= entry->blocks;
+			spin_unlock(&sbi->cold_inode_lock);
+			kfree(entry);
+			continue;
+		}
+
+		f2fs_lock_op(sbi);
+		down_write(&F2FS_I(dir)->i_sem);
+
+		de = f2fs_find_entry_by_ino(dir, entry->nid, &page);
+		if (de) {
+			/*
+			 * Follow the same orphan accounting rule as f2fs_unlink():
+			 * acquire an orphan slot before deleting the dentry so that
+			 * later truncate_node()'s f2fs_remove_orphan_inode() can
+			 * safely decrement im[ORPHAN_INO].ino_num.
+			 */
+			err = f2fs_acquire_orphan_inode(sbi);
+			if (err) {
+				f2fs_put_page(page, 0);
+				up_write(&F2FS_I(dir)->i_sem);
+				f2fs_unlock_op(sbi);
+				iput(dir);
+				iput(inode);
+				spin_lock(&sbi->cold_inode_lock);
+				sbi->cold_file_pending_blocks -= entry->blocks;
+				spin_unlock(&sbi->cold_inode_lock);
+				kfree(entry);
+				continue;
+			}
+			f2fs_delete_entry(de, page, dir, inode);
+			
+			/* 
+			 * Prune VFS aliases to ensure dentry is released.
+			 * Decrement link count to trigger eviction on iput.
+			 */
+			d_prune_aliases(inode);
+			
+			// f2fs_info(sbi, "Cold file deleted: nid %u, i_count %d, i_nlink %d", 
+			// 	entry->nid, atomic_read(&inode->i_count), inode->i_nlink);
+		} else {
+			f2fs_warn(sbi, "Cold file entry not found: nid %u", entry->nid);
+		}
+
+		up_write(&F2FS_I(dir)->i_sem);
+		f2fs_unlock_op(sbi);
+
+		iput(dir);
+		iput(inode);
+		spin_lock(&sbi->cold_inode_lock);
+		sbi->cold_file_pending_blocks -= entry->blocks;
+		spin_unlock(&sbi->cold_inode_lock);
+		kfree(entry);
+	}
+	return 0;
+}
+
+int f2fs_start_cold_file_thread(struct f2fs_sb_info *sbi)
+{
+	struct task_struct *tsk;
+
+	if (sbi->cold_inode_task)
+		return 0;
+
+	tsk = kthread_run(f2fs_cold_file_thread_func, sbi,
+			"f2fs_cold_file");
+	if (IS_ERR(tsk)) {
+		f2fs_err(sbi, "Failed to start cold file thread");
+		return PTR_ERR(tsk);
+	}
+	sbi->cold_inode_task = tsk;
+	return 0;
+}
+
+void f2fs_stop_cold_file_thread(struct f2fs_sb_info *sbi)
+{
+	if (sbi->cold_inode_task) {
+		kthread_stop(sbi->cold_inode_task);
+		sbi->cold_inode_task = NULL;
+	}
+}
+#endif
+
 static int f2fs_fill_super(struct super_block *sb, void *data, int silent)
 {
-	struct f2fs_sb_info *sbi;
-	struct f2fs_super_block *raw_super;
+	struct f2fs_sb_info *sbi; // in-memory super block
+	struct f2fs_super_block *raw_super; // on-disk super block
 	struct inode *root;
 	int err;
 	bool skip_recovery = false, need_fsck = false;
@@ -4433,7 +4644,7 @@ try_onemore:
 	if (!sbi)
 		return -ENOMEM;
 
-	sbi->sb = sb;
+	sbi->sb = sb; // -> VFS super block
 
 	/* Load the checksum driver */
 	sbi->s_chksum_driver = crypto_alloc_shash("crc32", 0, 0);
@@ -4444,7 +4655,7 @@ try_onemore:
 		goto free_sbi;
 	}
 
-	/* set a block size */
+	/* set a block size: 4KB*/
 	if (unlikely(!sb_set_blocksize(sb, F2FS_BLKSIZE))) {
 		f2fs_err(sbi, "unable to set blocksize");
 		goto free_sbi;
@@ -4464,6 +4675,7 @@ try_onemore:
 						sizeof(raw_super->uuid));
 
 	default_options(sbi);
+	// 解析挂载选项
 	/* parse mount options */
 	options = kstrdup((const char *)data, GFP_KERNEL);
 	if (data && !options) {
@@ -4496,6 +4708,7 @@ try_onemore:
 	}
 #endif
 
+	// 设置VFS相关回调
 	sb->s_op = &f2fs_sops;
 #ifdef CONFIG_FS_ENCRYPTION
 	sb->s_cop = &f2fs_cryptops;
@@ -4524,8 +4737,9 @@ try_onemore:
 	set_sbi_flag(sbi, SBI_POR_DOING);
 	spin_lock_init(&sbi->stat_lock);
 
+	// F2FS 为不同类型的页维护独立的 bio 缓冲区，写入时可以分别聚合。
 	for (i = 0; i < NR_PAGE_TYPE; i++) {
-		int n = (i == META) ? 1 : NR_TEMP_TYPE;
+		int n = (i == META) ? 1 : NR_TEMP_TYPE; // META只有一个子类型，NODE/DATA有多个类型（HOT/WARM/COLD）
 		int j;
 
 		sbi->write_io[i] =
@@ -4553,7 +4767,11 @@ try_onemore:
 	init_rwsem(&sbi->quota_sem);
 	init_waitqueue_head(&sbi->cp_wait);
 	init_sb_info(sbi);
-
+#if HOTNESS
+	INIT_LIST_HEAD(&sbi->cold_inode_list);
+	spin_lock_init(&sbi->cold_inode_lock);
+	init_waitqueue_head(&sbi->cold_inode_wait_queue);
+#endif
 	err = f2fs_init_iostat(sbi);
 	if (err)
 		goto free_bio_info;
@@ -4579,8 +4797,9 @@ try_onemore:
 	if (err)
 		goto free_xattr_cache;
 
+	// 获取（或创建）一个内存态的 inode 对象
 	/* get an inode for meta space */
-	sbi->meta_inode = f2fs_iget(sb, F2FS_META_INO(sbi));
+	sbi->meta_inode = f2fs_iget(sb, F2FS_META_INO(sbi)); // meta_inode->i_ino = 2
 	if (IS_ERR(sbi->meta_inode)) {
 		f2fs_err(sbi, "Failed to read F2FS meta data inode");
 		err = PTR_ERR(sbi->meta_inode);
@@ -4673,6 +4892,9 @@ try_onemore:
 
 	/* setup f2fs internal modules */
 	err = f2fs_build_segment_manager(sbi);
+	// F2FS-ZONE: blks_per_seg=512, log_blocks_per_seg=9, blocks_per_blkz=524288
+	pr_info("F2FS-ZONE: blks_per_seg=%u, log_blocks_per_seg=%u, blocks_per_blkz=%u\n",
+        sbi->blocks_per_seg, sbi->log_blocks_per_seg, sbi->blocks_per_blkz);
 	if (err) {
 		f2fs_err(sbi, "Failed to initialize F2FS segment manager (%d)",
 			 err);
@@ -4810,8 +5032,10 @@ try_onemore:
 	 */
 	if (!err && !f2fs_readonly(sb) && f2fs_sb_has_blkzoned(sbi)) {
 		err = f2fs_check_write_pointer(sbi);
-		if (err)
+		if (err) {
+			pr_info("F2FS-ZONE: f2fs_check_write_pointer error!---tt\n");
 			goto free_meta;
+		}  
 	}
 
 reset_checkpoint:
@@ -4857,6 +5081,12 @@ reset_checkpoint:
 	f2fs_update_time(sbi, CP_TIME);
 	f2fs_update_time(sbi, REQ_TIME);
 	clear_sbi_flag(sbi, SBI_CP_DISABLED_QUICK);
+
+#if HOTNESS
+	err = f2fs_start_cold_file_thread(sbi);
+	if (err)
+		goto sync_free_meta;
+#endif
 
 #if ZF2FS_MONITOR
     err = f2fs_start_monitor_thread(sbi);
@@ -4917,6 +5147,9 @@ stop_merge_thread:
 #endif
 #endif
 stop_ckpt_thread:
+#if HOTNESS
+	f2fs_stop_cold_file_thread(sbi);
+#endif
 	f2fs_stop_ckpt_thread(sbi);
 free_devices:
 	destroy_device_list(sbi);
@@ -5009,11 +5242,14 @@ static void kill_f2fs_super(struct super_block *sb)
 static struct file_system_type f2fs_fs_type = {
 	.owner		= THIS_MODULE,
 	.name		= "f2fs",
+	// .name		= "zlfs",
 	.mount		= f2fs_mount,
 	.kill_sb	= kill_f2fs_super,
 	.fs_flags	= FS_REQUIRES_DEV,
 };
 MODULE_ALIAS_FS("f2fs");
+// MODULE_ALIAS_FS("zlfs");
+// MODULE_DESCRIPTION("Zoned Log-structured File System (based on F2FS)");
 
 static int __init init_inodecache(void)
 {

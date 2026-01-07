@@ -954,7 +954,7 @@ repeat:
 			spin_unlock(&inode->i_lock);
 			return ERR_PTR(-ESTALE);
 		}
-		__iget(inode);
+		__iget(inode); // 增加引用计数
 		spin_unlock(&inode->i_lock);
 		return inode;
 	}
@@ -1263,7 +1263,7 @@ EXPORT_SYMBOL(iget5_locked);
  */
 struct inode *iget_locked(struct super_block *sb, unsigned long ino)
 {
-	struct hlist_head *head = inode_hashtable + hash(sb, ino);
+	struct hlist_head *head = inode_hashtable + hash(sb, ino); // hash碰撞的所有inode用一个list链接起来
 	struct inode *inode;
 again:
 	spin_lock(&inode_hash_lock);
@@ -1280,6 +1280,7 @@ again:
 		return inode;
 	}
 
+	/* Not found, so allocate a new inode */
 	inode = alloc_inode(sb);
 	if (inode) {
 		struct inode *old;

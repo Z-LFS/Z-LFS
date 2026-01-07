@@ -537,6 +537,15 @@ static int f2fs_file_open(struct inode *inode, struct file *filp)
 {
 	int err = fscrypt_file_open(inode, filp);
 
+#if HOTNESS
+	if ((filp->f_mode & FMODE_READ) && !(filp->f_mode & FMODE_WRITE)) {
+		struct f2fs_sb_info *sbi = F2FS_I_SB(inode);
+		atomic_inc(&F2FS_I(inode)->i_access_count);
+		// f2fs_info(sbi, "[%s:%d]: file read open, access count:%d", 
+		// 	__func__, __LINE__, atomic_read(&F2FS_I(inode)->i_access_count));
+	}
+#endif
+
 	if (err)
 		return err;
 
@@ -3804,6 +3813,7 @@ static int f2fs_sec_trim_file(struct file *filp, unsigned long arg)
 		for (i = 0; i < count; i++, index++, dn.ofs_in_node++) {
 			struct block_device *cur_bdev;
 			block_t blkaddr = f2fs_data_blkaddr(&dn);
+			int di = 0;
 
 			if (!__is_valid_data_blkaddr(blkaddr))
 				continue;
@@ -3817,7 +3827,8 @@ static int f2fs_sec_trim_file(struct file *filp, unsigned long arg)
 
 			cur_bdev = f2fs_target_device(sbi, blkaddr, NULL);
 			if (f2fs_is_multi_device(sbi)) {
-				int di = f2fs_target_device_index(sbi, blkaddr);
+				// int di = f2fs_target_device_index(sbi, blkaddr);
+				di = f2fs_target_device_index(sbi, blkaddr);
 
 				blkaddr -= FDEV(di).start_blk;
 			}
@@ -3828,6 +3839,10 @@ static int f2fs_sec_trim_file(struct file *filp, unsigned long arg)
 						blkaddr == prev_block + len) {
 					len++;
 				} else {
+					if (prev_bdev == cur_bdev)
+						printk("(%s:%d) prev_bdev = cur_bdev, blkaddr: %u, FDEV(di).start_blk: %u, len: %u [by tt]", __func__, __LINE__, blkaddr, FDEV(di).start_blk, len);
+					else
+						printk("(%s:%d) prev_bdev != cur_bdev, blkaddr: %u, FDEV(di).start_blk: %u, len: %u [by tt]", __func__, __LINE__, blkaddr, FDEV(di).start_blk, len);
 					ret = f2fs_secure_erase(prev_bdev,
 						inode, prev_index, prev_block,
 						len, range.flags);

@@ -360,6 +360,10 @@ static int do_read_inode(struct inode *inode)
 	inode->i_size = le64_to_cpu(ri->i_size);
 	inode->i_blocks = SECTOR_FROM_BLOCK(le64_to_cpu(ri->i_blocks) - 1);
 
+#if HOTNESS
+	atomic_set(&fi->i_access_count, le64_to_cpu(ri->i_access_count));
+#endif
+
 	inode->i_atime.tv_sec = le64_to_cpu(ri->i_atime);
 	inode->i_ctime.tv_sec = le64_to_cpu(ri->i_ctime);
 	inode->i_mtime.tv_sec = le64_to_cpu(ri->i_mtime);
@@ -487,6 +491,7 @@ struct inode *f2fs_iget(struct super_block *sb, unsigned long ino)
 	struct inode *inode;
 	int ret = 0;
 
+	// 从inode cache中获取（或创建）一个内存态的 inode 对象
 	inode = iget_locked(sb, ino);
 	if (!inode)
 		return ERR_PTR(-ENOMEM);
@@ -495,6 +500,7 @@ struct inode *f2fs_iget(struct super_block *sb, unsigned long ino)
 		trace_f2fs_iget(inode);
 		return inode;
 	}
+	// inode 不需要从磁盘加载，而是内核启动时“虚拟构造”的
 	if (ino == F2FS_NODE_INO(sbi) || ino == F2FS_META_INO(sbi))
 		goto make_now;
 
@@ -503,14 +509,18 @@ struct inode *f2fs_iget(struct super_block *sb, unsigned long ino)
 		goto make_now;
 #endif
 
+	// 其余inode需要去page cache或磁盘上读取该 inode 的数据，并填充到内存态的 inode 对象中
 	ret = do_read_inode(inode);
 	if (ret)
 		goto bad_inode;
 make_now:
+// 根据不同类型的文件，设置 inode 的操作函数表
 	if (ino == F2FS_NODE_INO(sbi)) {
+		// node inode
 		inode->i_mapping->a_ops = &f2fs_node_aops;
 		mapping_set_gfp_mask(inode->i_mapping, GFP_NOFS);
 	} else if (ino == F2FS_META_INO(sbi)) {
+		// meta inode
 		inode->i_mapping->a_ops = &f2fs_meta_aops;
 		mapping_set_gfp_mask(inode->i_mapping, GFP_NOFS);
 	} else if (ino == F2FS_COMPRESS_INO(sbi)) {
@@ -525,15 +535,18 @@ make_now:
 		mapping_set_gfp_mask(inode->i_mapping,
 			GFP_NOFS | __GFP_HIGHMEM | __GFP_MOVABLE);
 	} else if (S_ISREG(inode->i_mode)) {
+		// 普通文件
 		inode->i_op = &f2fs_file_inode_operations;
 		inode->i_fop = &f2fs_file_operations;
 		inode->i_mapping->a_ops = &f2fs_dblock_aops;
 	} else if (S_ISDIR(inode->i_mode)) {
+		// 目录文件
 		inode->i_op = &f2fs_dir_inode_operations;
 		inode->i_fop = &f2fs_dir_operations;
 		inode->i_mapping->a_ops = &f2fs_dblock_aops;
 		mapping_set_gfp_mask(inode->i_mapping, GFP_NOFS);
 	} else if (S_ISLNK(inode->i_mode)) {
+		// 符号链接文件
 		if (file_is_encrypt(inode))
 			inode->i_op = &f2fs_encrypted_symlink_inode_operations;
 		else
@@ -557,7 +570,7 @@ make_now:
 		file_dont_truncate(inode);
 	}
 
-	unlock_new_inode(inode);
+	unlock_new_inode(inode); // 标记 inode 可用
 	trace_f2fs_iget(inode);
 	return inode;
 
@@ -601,6 +614,10 @@ void f2fs_update_inode(struct inode *inode, struct page *node_page)
 	ri->i_links = cpu_to_le32(inode->i_nlink);
 	ri->i_size = cpu_to_le64(i_size_read(inode));
 	ri->i_blocks = cpu_to_le64(SECTOR_TO_BLOCK(inode->i_blocks) + 1);
+
+#if HOTNESS
+	ri->i_access_count = cpu_to_le64(atomic_read(&F2FS_I(inode)->i_access_count));
+#endif
 
 	if (et) {
 		read_lock(&et->lock);

@@ -324,6 +324,10 @@ static void f2fs_read_end_io(struct bio *bio)
 		f2fs_verify_and_finish_bio(bio);
 	}
 }
+
+// f2fs_write_end_io ������ F2FS �ļ�ϵͳ��һ�� BIO �����ص�������End IO Callback����
+// ������Ҫ��������һ��д�������Write BIO����ɺ����ں˵Ŀ��豸���Զ����ã�
+// ����ִ�����д��������صĺ��������͹���������
 static void f2fs_write_end_io(struct bio *bio)
 {
 	struct f2fs_sb_info *sbi;
@@ -333,14 +337,18 @@ static void f2fs_write_end_io(struct bio *bio)
 	iostat_update_and_unbind_ctx(bio, 1);
 	sbi = bio->bi_private;
 
+	// ����ע�����
 	if (time_to_inject(sbi, FAULT_WRITE_IO)) {
 		f2fs_show_injection_info(sbi, FAULT_WRITE_IO);
 		bio->bi_status = BLK_STS_IOERR;
 	}
 
+	// ����BIO�е�����ҳ��bio_vec��
 	bio_for_each_segment_all(bvec, bio, iter_all) {
 		struct page *page = bvec->bv_page;
 		enum count_type type = WB_DATA_TYPE(page);
+
+		//  ����Dummyҳ������ҳ��
 		if (page_private_dummy(page)) {
 			clear_page_private_dummy(page);
 			unlock_page(page);
@@ -354,22 +362,25 @@ static void f2fs_write_end_io(struct bio *bio)
 		fscrypt_finalize_bounce_page(&page);
 
 #ifdef CONFIG_F2FS_FS_COMPRESSION
+		// ����ѹ��ҳ
 		if (f2fs_is_compressed_page(page)) {
 			f2fs_compress_write_end_io(bio, page);
 			continue;
 		}
 #endif
 
-		if (unlikely(bio->bi_status)) {
-			mapping_set_error(page->mapping, -EIO);
-			if (type == F2FS_WB_CP_DATA)
-				f2fs_stop_checkpoint(sbi, true);
+		// ��������ҳ
+		if (unlikely(bio->bi_status)) {	// ���IO����
+			mapping_set_error(page->mapping, -EIO);	// ���ģ��������ǵ�ӳ����
+			if (type == F2FS_WB_CP_DATA)	// ����������Ǽ�������ҳ
+				f2fs_stop_checkpoint(sbi, true);	 // ���ģ�ֹͣ����
 		}
 
 		f2fs_bug_on(sbi, page->mapping == NODE_MAPPING(sbi) &&
 					page->index != nid_of_node(page));
 
 #if DELAYED_MERGE
+	// ������count_type
     type = __is_merged_meta(page)? F2FS_MERGE_META : type;
 #endif
 		dec_page_count(sbi, type);
@@ -387,7 +398,7 @@ static void f2fs_write_end_io(struct bio *bio)
 #if ZF2FS_MONITOR
     if ((bio_end_sector(bio) 
       % (sbi->segs_per_sec * sbi->blocks_per_seg)) == 96 * 1024 * 2 ) {
-      //printk("a zone finished (%llu)", bio_end_sector(bio));
+      printk("a zone finished (%llu)", bio_end_sector(bio));
       sbi->f2fs_open_zones--;
     }
 #endif
@@ -430,6 +441,7 @@ int f2fs_get_first_zns_index(struct f2fs_sb_info *sbi) {
   
 }
 
+// blkaddr在设备的起始和末尾地址之间，返回设备索引
 int f2fs_target_device_index(struct f2fs_sb_info *sbi, block_t blkaddr)
 {
 	int i;
@@ -455,6 +467,7 @@ static struct bio *__bio_alloc(struct f2fs_io_info *fio, int npages)
 		bio->bi_end_io = f2fs_read_end_io;
 		bio->bi_private = NULL;
 	} else {
+		// ���ô��̿��������ʵ�ʵ�����д���Ļص�����
 		bio->bi_end_io = f2fs_write_end_io;
 		bio->bi_private = sbi;
 		bio->bi_write_hint = f2fs_io_type_to_rw_hint(sbi,
@@ -728,6 +741,7 @@ int f2fs_submit_page_bio(struct f2fs_io_info *fio)
   int type;
 #endif
 
+	// 【TODO251118】META_SSA的地址有效性判断有问题
 	if (!f2fs_is_valid_blkaddr(fio->sbi, fio->new_blkaddr,
 			fio->is_por ? META_POR : (__is_meta_io(fio) ?
 			META_GENERIC : DATA_GENERIC_ENHANCE)))
@@ -1200,8 +1214,13 @@ int f2fs_reserve_new_blocks(struct dnode_of_data *dn, blkcnt_t count)
 
 	if (unlikely(is_inode_flag_set(dn->inode, FI_NO_ALLOC)))
 		return -EPERM;
-	if (unlikely((err = inc_valid_block_count(sbi, dn->inode, &count))))
+	if (unlikely((err = inc_valid_block_count(sbi, dn->inode, &count)))) {
+		printk(KERN_ERR "DEBUG_GC: inc_valid_block_count failed. err=%d. valid=%u, user=%u, free_sec=%u\n",
+			err, (unsigned int)sbi->total_valid_block_count,
+			(unsigned int)sbi->user_block_count,
+			free_sections(sbi));
 		return err;
+	}
 
 	trace_f2fs_reserve_new_blocks(dn->inode, dn->nid,
 						dn->ofs_in_node, count);
@@ -2749,9 +2768,12 @@ got_it:
 		}
 		fio->need_lock = LOCK_REQ;
 	}
+	// 【TODO251120】定位
 	err = f2fs_get_node_info(fio->sbi, dn.nid, &ni, false);
-	if (err)
+	if (err) {
+ 		printk("(%s:%d) f2fs_get_node_info failed nid=%u, err=%d\n", __func__, __LINE__, dn.nid, err);
 		goto out_writepage;
+	}
 
 	fio->version = ni.version;
 
@@ -3504,8 +3526,15 @@ repeat:
 
 	err = prepare_write_begin(sbi, page, pos, len,
 					&blkaddr, &need_balance);
-	if (err)
+	if (err) {
+		if (err == -ENOSPC) {
+			printk(KERN_ERR "DEBUG_GC: prepare_write_begin failed with ENOSPC. valid=%u, user=%u, free_sec=%u\n",
+				(unsigned int)sbi->total_valid_block_count,
+				(unsigned int)sbi->user_block_count,
+				free_sections(sbi));
+		}
 		goto fail;
+	}
 
 	if (need_balance && !IS_NOQUOTA(inode) &&
 			has_not_enough_free_secs(sbi, 0, 0)) {

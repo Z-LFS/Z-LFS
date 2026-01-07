@@ -715,6 +715,7 @@ static inline int sanity_check_area_boundary(struct f2fs_super_block *sb,
 	u32 segment_count_nat = get_sb(segment_count_nat);
 	u32 segment_count_ssa = get_sb(segment_count_ssa);
 	u32 segment_count_main = get_sb(segment_count_main);
+
 	u32 segment_count = get_sb(segment_count);
 	u32 log_blocks_per_seg = get_sb(log_blocks_per_seg);
 	u64 main_end_blkaddr = main_blkaddr +

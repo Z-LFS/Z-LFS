@@ -672,7 +672,7 @@ void f2fs_init_configuration(void)
 	int i;
 
 	memset(&c, 0, sizeof(struct f2fs_configuration));
-	c.ndevs = 1;
+	c.ndevs = 1; // 默认单设备
 	c.sectors_per_blk = DEFAULT_SECTORS_PER_BLOCK;
 	c.blks_per_seg = DEFAULT_BLOCKS_PER_SEGMENT;
 	c.wanted_total_sectors = -1;
@@ -684,9 +684,9 @@ void f2fs_init_configuration(void)
 	c.no_kernel_check = 0;
 #endif
 
-	for (i = 0; i < MAX_DEVICES; i++) {
+	for (i = 0; i < MAX_DEVICES; i++) { // MAX_DEVICES = 8
 		c.devices[i].fd = -1;
-		c.devices[i].sector_size = DEFAULT_SECTOR_SIZE;
+		c.devices[i].sector_size = DEFAULT_SECTOR_SIZE; // 512
 		c.devices[i].end_blkaddr = -1;
 		c.devices[i].zoned_model = F2FS_ZONED_NONE;
 	}
@@ -757,6 +757,7 @@ int f2fs_dev_is_umounted(char *path)
 	 * f2fs_stop_checkpoint makes RO in /proc/mounts while RW in /etc/mtab.
 	 */
 #ifdef __linux__
+	// 确保设备没有被挂载
 	ret = is_mounted("/proc/mounts", path);
 	if (ret) {
 		MSG(0, "Info: Mounted device!\n");
@@ -902,8 +903,10 @@ int get_device_info(int i)
 	unsigned char reply_buffer[96] = {0};
 	unsigned char model_inq[6] = {MODELINQUIRY};
 #endif
+	// dev是第i个设备的信息
 	struct device_info *dev = c.devices + i;
 
+	// c.sparse_mode在我们的场景中一般设置为0
 	if (c.sparse_mode) {
 		fd = open(dev->path, O_RDWR | O_CREAT | O_BINARY, 0644);
 		if (fd < 0) {
@@ -927,6 +930,7 @@ int get_device_info(int i)
 
 		if (S_ISBLK(stat_buf->st_mode) &&
 				!c.force && c.func != DUMP && !c.dry_run) {
+// 获取文件描述符
 #if META_FOR_ZNS
 			fd = open(dev->path, O_RDWR | O_EXCL | O_SYNC);
 #else
@@ -946,6 +950,7 @@ int get_device_info(int i)
 		return -1;
 	}
 
+	// 绑定文件描述符
 	dev->fd = fd;
 
 	if (c.sparse_mode) {
@@ -1026,6 +1031,7 @@ int get_device_info(int i)
 	}
 
 	if (!c.sector_size) {
+		// 设置sector size
 		c.sector_size = dev->sector_size;
 		c.sectors_per_blk = F2FS_BLKSIZE / c.sector_size;
 	} else if (c.sector_size != c.devices[i].sector_size) {
@@ -1067,6 +1073,7 @@ int get_device_info(int i)
 			free(stat_buf);
 			return -1;
 		}
+		// 输出zone信息
 		MSG(0, "Info: Host-%s zoned block device:\n",
 				(dev->zoned_model == F2FS_ZONED_HA) ?
 					"aware" : "managed");
@@ -1227,6 +1234,7 @@ int f2fs_get_f2fs_info(void)
 	 *     setting by the user.
 	 */
 	c.zoned_model = F2FS_ZONED_NONE;
+	// 如果c.devices[1].zoned_model=F2FS_ZONED_HA ==> c.zoned_model=F2FS_ZONED_HA
 	for (i = 0; i < c.ndevs; i++) {
 		switch (c.devices[i].zoned_model) {
 		case F2FS_ZONED_NONE:
@@ -1241,6 +1249,7 @@ int f2fs_get_f2fs_info(void)
 		}
 	}
 
+	// 将ZNS上的zone_blocks设置到configuration中
 	if (c.zoned_model != F2FS_ZONED_NONE) {
 
 		/*
@@ -1265,7 +1274,7 @@ int f2fs_get_f2fs_info(void)
 		 * BLKZONED feature set at format time, this is only an
 		 * optimization as sequential writes will not be enforced.
 		 */
-		c.segs_per_sec = c.zone_blocks / DEFAULT_BLOCKS_PER_SEGMENT;
+		c.segs_per_sec = c.zone_blocks / DEFAULT_BLOCKS_PER_SEGMENT; // = zoneBlocks / 512
 		c.secs_per_zone = 1;
 	} else {
 		if(c.zoned_mode != 0) {
@@ -1282,7 +1291,7 @@ int f2fs_get_f2fs_info(void)
 
 	MSG(0, "Info: Segments per section = %d\n", c.segs_per_sec);
 	MSG(0, "Info: Sections per zone = %d\n", c.secs_per_zone);
-	MSG(0, "Info: sector size = %u\n", c.sector_size);
+	MSG(0, "Info: sector size = %uB\n", c.sector_size);
 	MSG(0, "Info: total sectors = %"PRIu64" (%"PRIu64" MB)\n",
 				c.total_sectors, (c.total_sectors *
 					(c.sector_size >> 9)) >> 11);

@@ -212,17 +212,30 @@ static inline pgoff_t current_nat_addr(struct f2fs_sb_info *sbi, nid_t start)
 	pgoff_t block_off;
 	pgoff_t block_addr;
 
+	// 原来的blk_addr计算方式（多一个seg_off）
+	// block_off = NAT_BLOCK_OFFSET(start);//先找到这是第几个f2fs_nat_block
+	// seg_off = block_off >> sbi->log_blocks_per_seg;//根据block_off得到f2fs_nat_block在NAT区域的第seg_off个segment
+
+	// block_addr = (pgoff_t)(nm_i->nat_blkaddr +//NAT区域的起始地址加上segment和block的偏移
+	// 	(seg_off << sbi->log_blocks_per_seg << 1) +//段偏移需要*2，因为是按照段进行备份的
+	// 	(block_off & ((1 << sbi->log_blocks_per_seg) - 1)));//段内的块偏移不需要翻倍
+
+	// 使用更简化的方式计算 block_addr, OLD和NEW是等价的
 	/*
 	 * block_off = segment_off * 512 + off_in_segment
 	 * OLD = (segment_off * 512) * 2 + off_in_segment
 	 * NEW = 2 * (segment_off * 512 + off_in_segment) - off_in_segment
-	 */
+	 */          
 	block_off = NAT_BLOCK_OFFSET(start);
 
+	// 计算出该node block在NAT区域的物理块地址[version1]
 	block_addr = (pgoff_t)(nm_i->nat_blkaddr +
 		(block_off << 1) -
 		(block_off & (sbi->blocks_per_seg - 1)));
 
+	// 找出有效的副本
+	// nat是按照segment进行双副本存储的
+	// nat block的副本位于下一个segment的相同offset处
 	if (f2fs_test_bit(block_off, nm_i->nat_bitmap))
 		block_addr += sbi->blocks_per_seg;
 

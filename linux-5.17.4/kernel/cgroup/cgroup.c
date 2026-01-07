@@ -283,7 +283,7 @@ bool cgroup_ssid_enabled(int ssid)
  *
  * - rename(2) is disallowed.
  *
- * - "tasks" is removed.  Everything should be at process granularity.  Use
+ * - "tasks" is removed.  Everything should be at process granularity.  Use    
  *   "cgroup.procs" instead.
  *
  * - "cgroup.procs" is not sorted.  pids will be unique unless they got

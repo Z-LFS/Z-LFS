@@ -44,7 +44,10 @@ enum meta_type{
 };
 #endif
 
-//#define CONFIG_F2FS_CHECK_FS
+
+#if HOTNESS
+#define CP_NONBLOCK        (1 << 8)
+#endif
 
 struct pagevec;
 
@@ -299,6 +302,9 @@ struct ino_entry {
 struct inode_entry {
 	struct list_head list;	/* list head */
 	struct inode *inode;	/* vfs inode pointer */
+#if HOTNESS
+	bool hot_visited;
+#endif
 };
 
 struct fsync_node_entry {
@@ -443,8 +449,10 @@ struct fsync_inode_entry {
 #else
 #define log_size(sbi)				(sbi->segs_per_sec * sbi->blocks_per_seg)
 #endif
+// nid_to_zone从未被调用
 #define nid_to_zone(nid) 			(nid)
 
+// lblock所指示的segment中第i个block的sit信息
 #define sit_in_log(lblock, i)		((lblock)->entries[i].se)
 #define segno_in_log(lblock, i)		((lblock)->entries[i].segno)
 
@@ -776,6 +784,9 @@ enum {
 	FI_ENABLE_COMPRESS,	/* enable compression in "user" compression mode */
 	FI_COMPRESS_RELEASED,	/* compressed blocks were released */
 	FI_ALIGNED_WRITE,	/* enable aligned write */
+#if HOTNESS
+	FI_COLD_FILE_QUEUED,	/* indicate file is queued for deletion */
+#endif
 	FI_MAX,			/* max flag, never be used */
 };
 
@@ -789,7 +800,9 @@ struct f2fs_inode_info {
 	unsigned int i_gc_failures[MAX_GC_FAILURE];
 	unsigned int i_pino;		/* parent inode number */
 	umode_t i_acl_mode;		/* keep file acl mode temporarily */
-
+#if HOTNESS
+    atomic_t i_access_count; /* file access count */
+#endif
 	/* Use below internally in f2fs*/
 	unsigned long flags[BITS_TO_LONGS(FI_MAX)];	/* use to pass per-file flags */
 	struct rw_semaphore i_sem;	/* protect fi info */
@@ -993,11 +1006,14 @@ struct f2fs_nm_info {
  * all the information are dedicated to a given direct node block determined
  * by the data offset in a file.
  */
+// dnode => direct node
 struct dnode_of_data {
 	struct inode *inode;		/* vfs inode pointer */
 	struct page *inode_page;	/* its inode page, NULL is possible */
+	// 包含该数据的 node page
 	struct page *node_page;		/* cached direct node page */
 	nid_t nid;			/* node id of the direct node block */
+	// 在 node page 里的偏移
 	unsigned int ofs_in_node;	/* data offset in the node page */
 	bool inode_page_locked;		/* inode page is locked or not */
 	bool node_changed;		/* is node block changed */
@@ -1069,7 +1085,26 @@ struct flush_cmd_control {
 	struct llist_node *dispatch_list;	/* list for command dispatch */
 };
 
+#if HOTNESS
+struct zone_fifo_entry {
+    struct list_head list;
+    unsigned int zone_id;
+};
+#endif
+
+// segment management info
 struct f2fs_sm_info {
+#if HOTNESS
+	// every cur_zone has its own fifo list
+	struct list_head zone_fifo_list;
+	spinlock_t zone_fifo_lock;
+	/* per-zone hotness statistics and threshold */
+	int *zone_hot_min;
+	int *zone_hot_max;
+	int *zone_hot_thresh;
+	bool *zone_hot_seen;
+#endif
+
 	struct sit_info *sit_info;		/* whole segment information */
 	struct free_segmap_info *free_info;	/* free segment information */
 	struct dirty_seglist_info *dirty_info;	/* dirty segment information */
@@ -1085,10 +1120,11 @@ struct f2fs_sm_info {
 	/* for SIT */
 	block_t sit_log_blkaddr;	/* start block address of SIT log are */
 	int sit_blks_in_log; 		/* number of sit entries written in current log zone */
+	// current sit_log's zone_number
 	int cur_sit_log;			/* sit log set number of latest version  */
 
 	/* for SSA */
-	block_t sum_log_blkaddr;	/*start block address of SSA log area */
+	block_t ssa_log_blkaddr;	/*start block address of SSA log area */
 	int sum_blks_in_log; 		/* numbers of sum blocks written in current log zone */
 	int cur_sum_log; 			/* sum log set number of latest version */
 
@@ -1121,7 +1157,7 @@ struct f2fs_sm_info {
 #endif
 #if SEP_SSA
 // usable segment excluding summary block in a section
-  unsigned int usable_segs_in_sec;
+  unsigned int usable_segs_in_sec; // 【TODO: check】
   struct mutex ssa_mutex;
 #endif
 
@@ -1163,6 +1199,9 @@ struct f2fs_sm_info {
  * dirty dentry blocks, dirty node blocks, and dirty meta blocks.
  */
 #define WB_DATA_TYPE(p)	(__is_cp_guaranteed(p) ? F2FS_WB_CP_DATA : F2FS_WB_DATA)
+// COUNT_TYPE是F2FS的分类计数器标识符。
+// 它的主要作用是为 F2FS 内存中各种不同类型的数据块（页）提供唯一的分类标签，
+// 以便文件系统能够精确地追踪、统计和管理每一类内存页的数量和状态。
 enum count_type {
 	F2FS_DIRTY_DENTS,
 	F2FS_DIRTY_DATA,
@@ -1679,6 +1718,14 @@ struct decompress_io_ctx {
 #define MAX_COMPRESS_LOG_SIZE		8
 #define MAX_COMPRESS_WINDOW_SIZE(log_size)	((PAGE_SIZE) << (log_size))
 
+#if HOTNESS
+struct cold_inode_entry {
+	struct list_head list;
+	nid_t nid;
+	block_t blocks;
+};
+#endif
+
 struct f2fs_sb_info {
 	struct super_block *sb;			/* pointer to VFS super block */
 	struct proc_dir_entry *s_proc;		/* proc entry */
@@ -1689,6 +1736,7 @@ struct f2fs_sb_info {
 	struct mutex writepages;		/* mutex for writepages() */
 
 #ifdef CONFIG_BLK_DEV_ZONED
+	// blocks_per_blkz => 以zone size为分母进行计算
 	unsigned int blocks_per_blkz;		/* F2FS blocks per zone */
 	unsigned int log_blocks_per_blkz;	/* log2 F2FS blocks per zone */
 #endif
@@ -1932,7 +1980,20 @@ struct f2fs_sb_info {
   struct task_struct *monitor_thread;
   int f2fs_open_zones;
 #endif
+#if HOTNESS
+	struct list_head cold_inode_list;	/* list for cold inodes */
+	spinlock_t cold_inode_lock;		/* lock for cold inode list */
+	wait_queue_head_t cold_inode_wait_queue; /* wait queue for cold inode thread */
+	struct task_struct *cold_inode_task;	/* cold inode thread */
+	block_t cold_file_pending_blocks;	/* blocks of cold files queued for deletion */
+	int gc_effective_zone_th;		/* GC-only hotness threshold for current run */
+#endif
 };
+
+#if HOTNESS
+int f2fs_start_cold_file_thread(struct f2fs_sb_info *sbi);
+void f2fs_stop_cold_file_thread(struct f2fs_sb_info *sbi);
+#endif
 
 #ifdef CONFIG_F2FS_FAULT_INJECTION
 #define f2fs_show_injection_info(sbi, type)					\
@@ -2408,6 +2469,21 @@ static inline void dec_valid_block_count(struct f2fs_sb_info *sbi,
 
 static inline void inc_page_count(struct f2fs_sb_info *sbi, int count_type)
 {
+
+// #if HOTNESS
+// 	if (count_type == F2FS_DIRTY_META
+// #if DELAYED_MERGE
+// 		|| count_type == F2FS_MERGE_META
+// #endif
+// 		) {
+// 		f2fs_info(sbi,
+// 			"[%s:%d] inc_page_count type=%d nr=%d caller=%pS",
+// 			__func__, __LINE__,
+// 			count_type,
+// 			atomic_read(&sbi->nr_pages[count_type]),
+// 			__builtin_return_address(0));
+// 	}
+// #endif
 	atomic_inc(&sbi->nr_pages[count_type]);
 
 	if (count_type == F2FS_DIRTY_DENTS ||
@@ -2429,6 +2505,21 @@ static inline void inode_inc_dirty_pages(struct inode *inode)
 
 static inline void dec_page_count(struct f2fs_sb_info *sbi, int count_type)
 {
+
+// #if HOTNESS
+// 	if (count_type == F2FS_DIRTY_META
+// #if DELAYED_MERGE
+// 		|| count_type == F2FS_MERGE_META
+// #endif
+// 		) {
+// 		f2fs_info(sbi,
+// 			"[%s:%d] dec_page_count type=%d nr=%d caller=%pS",
+// 			__func__, __LINE__,
+// 			count_type,
+// 			atomic_read(&sbi->nr_pages[count_type]),
+// 			__builtin_return_address(0));
+// 	}
+// #endif
 	atomic_dec(&sbi->nr_pages[count_type]);
 }
 
@@ -2474,6 +2565,10 @@ static inline block_t discard_blocks(struct f2fs_sb_info *sbi)
 	return sbi->discard_blks;
 }
 
+// bitmap主要用于“增量恢复”
+// 在checkpoint中，保存的 NAT 和 SIT 表是上一次检查点时的快照。
+// 然而，在内存中，这些表一直在被修改。
+// bitmap则用来记录自上一个检查点以来，哪些条目被更新过。
 static inline unsigned long __bitmap_size(struct f2fs_sb_info *sbi, int flag)
 {
 	struct f2fs_checkpoint *ckpt = F2FS_CKPT(sbi);
@@ -2491,17 +2586,20 @@ static inline unsigned long __bitmap_size(struct f2fs_sb_info *sbi, int flag)
 	return 0;
 }
 
+// 辅助函数，用于获取检查点有效载荷（Checkpoint Payload） 的大小。
 static inline block_t __cp_payload(struct f2fs_sb_info *sbi)
 {
 	return le32_to_cpu(F2FS_RAW_SUPER(sbi)->cp_payload);
 }
 
+// 定位内存中 NAT 和 SIT 位图的起始地址
 static inline void *__bitmap_ptr(struct f2fs_sb_info *sbi, int flag)
 {
 	struct f2fs_checkpoint *ckpt = F2FS_CKPT(sbi);
 	void *tmp_ptr = &ckpt->sit_nat_version_bitmap;
 	int offset;
 
+	// (1) 大 NAT 位图特性已启用[是处理非常大磁盘的方案]
 	if (is_set_ckpt_flags(sbi, CP_LARGE_NAT_BITMAP_FLAG)) {
 		offset = (flag == SIT_BITMAP) ?
 			le32_to_cpu(ckpt->nat_ver_bitmap_bytesize) : 0;
@@ -2509,10 +2607,13 @@ static inline void *__bitmap_ptr(struct f2fs_sb_info *sbi, int flag)
 		 * if large_nat_bitmap feature is enabled, leave checksum
 		 * protection for all nat/sit bitmaps.
 		 */
+		// sizeof(__le32) 就是跳过这个 4 字节的校验和字段，直接指向位图数据本身。
 		return tmp_ptr + offset + sizeof(__le32);
 	}
 	
 #if META_FOR_ZNS
+	// (2) 使用了检查点有效载荷 (__cp_payload(sbi) > 0)
+	// [是标准大磁盘的方案, 检查点块内部空间不够用，需要用到 cp_payload 扩展区域]
 	if(flag == SSA_BITMAP)
 		return (unsigned char *)ckpt + __cp_payload(sbi) * F2FS_BLKSIZE;
 	if (__cp_payload(sbi) > 1) {
@@ -2522,18 +2623,29 @@ static inline void *__bitmap_ptr(struct f2fs_sb_info *sbi, int flag)
 		if (flag == NAT_BITMAP)
 			return &ckpt->sit_nat_version_bitmap;
 		else
-			return (unsigned char *)ckpt + F2FS_BLKSIZE;
+			return (unsigned char *)ckpt + F2FS_BLKSIZE; // SIT bitmap
 	} else {
+		// (2) 传统布局（默认情况）[是小磁盘的方案, 所有东西都能塞进第一个检查点块]
+		// NAT 位图紧跟在 SIT 位图之后
+		// SIT 位图就在起始位置, offset = 0
 		offset = (flag == NAT_BITMAP) ?
 			le32_to_cpu(ckpt->sit_ver_bitmap_bytesize) : 0;
 		return tmp_ptr + offset;
 	}
 }
 
+// 确定当前活动的Checkpoint在磁盘上的起始块地址
 static inline block_t __start_cp_addr(struct f2fs_sb_info *sbi)
 {
 	block_t start_addr = le32_to_cpu(F2FS_RAW_SUPER(sbi)->cp_blkaddr);
 
+	// 采用双检查点机制
+	// 2FS 总是交替地使用两个检查点包。例如：
+	// 第一次做检查点，写入 CP Pack 1。
+	// 第二次做检查点，写入 CP Pack 2。
+	// 这种机制确保了至少有一个检查点包是完整的。
+	// 即使在写入过程中发生崩溃，另一个检查点包仍然完好无损，系统可以用它来恢复。
+	// 这是一种简单的写时复制（Copy-on-Write） 机制在元数据层面的应用。
 	if (sbi->cur_cp_pack == 2)
 #if META_FOR_ZNS
 		start_addr += sbi->blocks_per_blkz;
@@ -2542,6 +2654,9 @@ static inline block_t __start_cp_addr(struct f2fs_sb_info *sbi)
 #endif
 	return start_addr;
 }
+
+// 获取下一个包地址
+// 每个cp占用一个zone
 static inline block_t __start_cp_next_addr(struct f2fs_sb_info *sbi)
 {
 	block_t start_addr = le32_to_cpu(F2FS_RAW_SUPER(sbi)->cp_blkaddr);
@@ -2555,6 +2670,7 @@ static inline block_t __start_cp_next_addr(struct f2fs_sb_info *sbi)
 	return start_addr;
 }
 
+// 切换至下一个包
 static inline void __set_cp_next_pack(struct f2fs_sb_info *sbi)
 {
 	sbi->cur_cp_pack = (sbi->cur_cp_pack == 1) ? 2 : 1;
@@ -2747,6 +2863,8 @@ static inline void f2fs_put_page(struct page *page, int unlock)
 		f2fs_bug_on(F2FS_P_SB(page), !PageLocked(page));
 		unlock_page(page);
 	}
+	// 释放对该页面的引用计数
+	// 当引用计数降为零时，页面可以被回收
 	put_page(page);
 }
 
@@ -3522,6 +3640,10 @@ int f2fs_do_add_link(struct inode *dir, const struct qstr *name,
 			struct inode *inode, nid_t ino, umode_t mode);
 void f2fs_delete_entry(struct f2fs_dir_entry *dentry, struct page *page,
 			struct inode *dir, struct inode *inode);
+#if HOTNESS
+struct f2fs_dir_entry *f2fs_find_entry_by_ino(struct inode *dir, nid_t ino,
+			struct page **res_page);
+#endif
 int f2fs_do_tmpfile(struct inode *inode, struct inode *dir);
 bool f2fs_empty_dir(struct inode *dir);
 
@@ -4433,6 +4555,7 @@ static inline bool f2fs_may_extent_tree(struct inode *inode)
 }
 
 #ifdef CONFIG_BLK_DEV_ZONED
+// 判断当前块地址所在的zone是否为顺序写
 static inline bool f2fs_blkz_is_seq(struct f2fs_sb_info *sbi, int devi,
 				    block_t blkaddr)
 {
@@ -4615,6 +4738,11 @@ static inline unsigned int meta_blks_zone_cap(struct f2fs_sb_info *sbi){
 	dev_idx = 0;
 	zone_idx = 0;
 
+	// pr_info("F2FS-ZONE: dev=%u, zone_idx=%u, zone_capacity=%u\n",
+    //     dev_idx, zone_idx,
+    //     FDEV(dev_idx).zone_capacity_blocks ?
+    //     FDEV(dev_idx).zone_capacity_blocks[zone_idx] : 0);
+
 	/*
 	 * If the zone_capacity_blocks array is NULL, then zone capacity
 	 * is equal to the zone size for all zones
@@ -4666,14 +4794,19 @@ static inline bool has_curlog_space(struct f2fs_sb_info *sbi,
 	} else if(type == SSA_LOG){
 		used_blocks = SM_I(sbi)->sum_blks_in_log;
 		//used_blocks = SM_I(sbi)->logged_sum_blks;
-		blocks_needed = entries;
+		blocks_needed = entries; // 因为对于SSA，一个entry就对应一个block
 	} else {
 		f2fs_bug_on(sbi, 1);
 		return true;
 	}
 	// consider all zone size is equal
-	log_size = log_size(sbi);
-	log_size = min(log_size, meta_blks_zone_cap(sbi));
+	// 【TODO251121】这里计算delta log区域的大小有误
+	// log_size(sbi) = (sbi->segs_per_sec * sbi->blocks_per_seg)
+	// sbi->segs_per_sec = (sbi->segs_per_sec * sbi->blocks_per_seg) / (sbi->blocks_per_seg + 1);
+    // sbi->blocks_per_seg = 1 << sbi->log_blocks_per_seg;               
+	// log_size = log_size(sbi);
+	// log_size = min(log_size, meta_blks_zone_cap(sbi));
+	log_size = meta_blks_zone_cap(sbi);
 #if META_LOG_STRIPE
   if (type == SSA_LOG) {
     log_size *= META_STRIPE_CNT;
@@ -4683,6 +4816,7 @@ static inline bool has_curlog_space(struct f2fs_sb_info *sbi,
 	//printk("(%s : %d) used blocks : %d, need : %d",
 	//		__func__, __LINE__, used_blocks, blocks_needed);
 
+	// 判断delta log区域是否可以放下cache中的log blocks
 	if(log_size >= (used_blocks + blocks_needed))
 		return true;
 	
@@ -4693,13 +4827,17 @@ static inline block_t get_cur_meta_blkaddr(struct f2fs_sb_info *sbi,
 
 	block_t blkaddr;
 
+	// 双副本=>保障一致性
 	blkaddr = base_addr + 
 		(2 * meta_boff_to_zoff(sbi, offset) * sbi->blocks_per_blkz) + 
 		meta_boff_in_zone(sbi, offset);
 
+	// 对于SSA，应该是判断所在的zone是否有效【TODO】
 	if(ssa)
 		offset = meta_boff_to_zoff(sbi, offset);
 
+	// 判断bit是否 不等于0【说明此时active meta不是0，需要向后跳zone个单位】
+	// 在META_FOR_ZNS模式下，另一个版本需要向后跳zone才能得到
 	if(f2fs_test_bit(offset, bitmap) != 0)
 		blkaddr += sbi->blocks_per_blkz;
 
@@ -4716,6 +4854,7 @@ static inline block_t get_next_meta_blkaddr(struct f2fs_sb_info *sbi,
 	if(ssa)
 		offset = meta_boff_to_zoff(sbi, offset);
 
+	// 判断bit是否 等于0
 	if(f2fs_test_bit(offset, bitmap) == 0)
 		blkaddr += sbi->blocks_per_blkz;
 
@@ -4728,6 +4867,7 @@ static inline block_t blocks_needed(struct f2fs_sb_info *sbi,
 	u32 zones_needed;
 	block_t blocks_needed;
 
+	// 根据zone capacity计算出每个meta data区域需要的zone数【Merge area中】
 	zones_needed = (segment_cnt << sbi->log_blocks_per_seg) / 2;
 	zones_needed = (zones_needed - 1)/zone_cap + 1;
 	zones_needed *= 2;
@@ -4736,6 +4876,7 @@ static inline block_t blocks_needed(struct f2fs_sb_info *sbi,
 	blocks_needed = (zones_needed * sbi->blocks_per_blkz);
 	return blocks_needed;
 }
+// 【TODO】不懂该函数的作用，logged_sum_blks和sum_blks_in_log的区别是？
 static inline int get_dirty_sum_pages(struct f2fs_sb_info *sbi){
 	struct f2fs_sm_info *sm_i = SM_I(sbi);
 	return (sm_i->logged_sum_blks - sm_i->sum_blks_in_log);

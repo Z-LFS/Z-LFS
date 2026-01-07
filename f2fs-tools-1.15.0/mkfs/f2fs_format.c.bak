@@ -46,7 +46,6 @@ struct f2fs_checkpoint *cp;
 #define prev_zone(cur)		(c.cur_seg[cur] - c.segs_per_zone)
 
 #if SEP_SSA
-// (1024 * 512) / 513 = 1022
 #define next_zone(cur)		(c.cur_seg[cur] + (c.segs_per_zone * c.blks_per_seg / (c.blks_per_seg+1)))
 #else
 #define next_zone(cur)		(c.cur_seg[cur] + c.segs_per_zone)
@@ -235,8 +234,7 @@ static int f2fs_prepare_super_block(void)
 #if META_FOR_ZNS
 	uint32_t blkz_cap_blks, blkz_size_segs;
 	uint32_t zone_needed;
-	// 获取zone size和zone capacity
-  	uint32_t blkz_size_blks = c.devices[0].zone_blocks;
+  uint32_t blkz_size_blks = c.devices[0].zone_blocks;
 	blkz_cap_blks = c.devices[0].zone_cap_blocks[0];
 	blkz_size_segs = blkz_size_blks / c.blks_per_seg;
 	//META_STRIPING
@@ -244,15 +242,13 @@ static int f2fs_prepare_super_block(void)
 	int meta_stripe_cnt = META_STRIPE_CNT; // no meta striping
 	MSG(1, "Info: Blocks per zone: %u\n",
 					blkz_size_blks);
-	MSG(1, "Info: META_STRIPE_CNT: %u\n",
-					META_STRIPE_CNT);
 #endif
 #if GRID_STRIPE
   uint32_t reserved_meta_segs = 0;
-  c.segs_per_sec = c.segs_per_sec * GRID_CNT; // 乘以GRID_CNT构成一个superzone
+  c.segs_per_sec = c.segs_per_sec * GRID_CNT;
   c.segs_per_zone = c.segs_per_sec * c.secs_per_zone;
   MSG(0, "Info: Grid count %d\n", GRID_CNT);
-  MSG(0, "Info: Segments per section modified to %d [refers to how many segments a zone size contain.]\n", c.segs_per_sec);
+  MSG(0, "Info: Segments per section modified to %d\n", c.segs_per_sec);
 #endif
 	set_sb(magic, F2FS_SUPER_MAGIC);
 	set_sb(major_ver, F2FS_MAJOR_VERSION);
@@ -305,11 +301,9 @@ static int f2fs_prepare_super_block(void)
 			return -1;
 	}
 #if META_FOR_ZNS
-	// For superblock, we use 2z [=> 2 zones for superblock]
+	// For superblock, we use 2z
 	zone_align_start_offset *= 2;
 #else
-	//【TODO1125】这里有一点奇怪，为什么SSD的segment0_blkaddr也需要跟zone size对齐呢？
-	//【TODO1125】是对的，c.devices[0]是ZNS device
 	if (c.zoned_mode && c.ndevs > 1)
 		zone_align_start_offset +=
 			(c.devices[0].total_sectors * c.sector_size) % zone_size_bytes;
@@ -318,16 +312,11 @@ static int f2fs_prepare_super_block(void)
 	//cp_blkaddr
 	set_sb(segment0_blkaddr, zone_align_start_offset / blk_size_bytes);
 	sb->cp_blkaddr = sb->segment0_blkaddr;
-	MSG(1, "Info: zone aligned start offset: %lu, c.start_sector: %u\n."
-		  "DEFAULT_SECTOR_SIZE: %u, DEFAULT_SECTORS_PER_BLOCK: %u, F2FS_BLKSIZE_BITS: %u,\n"
-		 "zone_size_bytes: %u, c.zoned_mode: %d\n",
-		zone_align_start_offset, c.start_sector, DEFAULT_SECTOR_SIZE,
-		 DEFAULT_SECTORS_PER_BLOCK, F2FS_BLKSIZE_BITS, zone_size_bytes, c.zoned_mode);
+	MSG(1, "Info: zone aligned start offset: %lu\n",
+					zone_align_start_offset);
 
 	MSG(0, "Info: zone aligned segment0 blkaddr: %u\n",
 					get_sb(segment0_blkaddr));
-	MSG(0, "Info: block_count: %llu\n",
-					get_sb(block_count));
 
 	if (c.zoned_mode &&
 		((c.ndevs == 1 &&
@@ -346,8 +335,6 @@ static int f2fs_prepare_super_block(void)
 				(c.devices[i].total_sectors *
 				c.sector_size - zone_align_start_offset) /
 				segment_size_bytes;
-			MSG(0, "Info: c.devices[i].total_segments: %u, c.devices[i].total_sectors: %lu, c.sector_size: %u, zone_align_start_offset: %lu, segment_size_bytes: %u\n",
-					c.devices[i].total_segments,c.devices[i].total_sectors,c.sector_size,zone_align_start_offset,segment_size_bytes);
 			c.devices[i].start_blkaddr = 0;
 			c.devices[i].end_blkaddr = c.devices[i].total_segments *
 						c.blks_per_seg - 1 +
@@ -363,22 +350,18 @@ static int f2fs_prepare_super_block(void)
 					c.blks_per_seg - 1;
 		}
 		if (c.ndevs > 1) {
-		// if (c.ndevs > 0) {
-			//【TODO】为什么只有ndevs>1时memcpy?【蠢的】
 			memcpy(sb->devs[i].path, c.devices[i].path, MAX_PATH_LEN);
 			sb->devs[i].total_segments =
 					cpu_to_le32(c.devices[i].total_segments);
 		}
 
-		// 但是total segments是所有device的总和
 		c.total_segments += c.devices[i].total_segments;
 	}
 	//META_FOR_ZNS
 	set_sb(segment_count, (c.total_segments / c.segs_per_zone *
 						c.segs_per_zone));
-	MSG(0, "INFO: segment_count: %u, c.total_segments: %u [1][by tt]\n", get_sb(segment_count), c.total_segments);
 #if 0//META_FOR_ZNS
-	//for ZNS, use 2 zones for checkpoint【TODO为什么设置了if 0】
+	//for ZNS, use 2 zones for checkpoint
 	set_sb(segment_count_ckpt, 2 * c.segs_per_zone);
 #else
 	set_sb(segment_count_ckpt, F2FS_NUMBER_OF_CHECKPOINT_PACK);
@@ -427,15 +410,12 @@ static int f2fs_prepare_super_block(void)
 	*/
 	zone_needed = ((blocks_for_sit - 1) / blkz_cap_blks) + 1;
 	sit_segments = SEG_ALIGN(blocks_for_sit);
-	// 设置为sit_segments的两倍==>备份？
 	set_sb(segment_count_sit, sit_segments * 2);
-	// 设置nat_blkaddr为SIT区域后的起始地址【实际分配的是两倍的zone needed，因为是在merge area中，且以zone size为单位(blkz_size_blks)】
 	set_sb(nat_blkaddr, get_sb(sit_blkaddr) +
 			2 * zone_needed * blkz_size_blks);
-	MSG(1, "sit zone needed : %u\n", zone_needed); // 输出的zone need仍然是1，是没有乘以2的结果
+	MSG(1, "sit zone needed : %u\n", zone_needed);
 #else
 	sit_segments = SEG_ALIGN(blocks_for_sit);
-	// 这里也是两倍=》备份
 	set_sb(segment_count_sit, sit_segments * 2);
 	set_sb(nat_blkaddr, get_sb(sit_blkaddr) + get_sb(segment_count_sit) *
 			c.blks_per_seg);
@@ -539,7 +519,7 @@ static int f2fs_prepare_super_block(void)
 
 
 #if META_FOR_ZNS
-#if GRID_STRIPE
+#if GRIE_STRIPE
 	if(get_sb(ssa_blkaddr) % (c.blks_per_seg * blkz_size_segs)){
 #else
 	if(get_sb(ssa_blkaddr) % (c.blks_per_seg * c.segs_per_zone)){
@@ -586,10 +566,8 @@ static int f2fs_prepare_super_block(void)
 		get_sb(segment_count_sit) +
 		get_sb(segment_count_nat) +
 		get_sb(segment_count_ssa); 
-	MSG(1, "(%s:%d)segment_count_ckpt : %u, segment_count_sit : %u, segment_count_nat : %u, segment_count_ssa : %u, segment_count : %u\n", 
-		__func__, __LINE__, get_sb(segment_count_ckpt), get_sb(segment_count_sit), get_sb(segment_count_nat), get_sb(segment_count_ssa), get_sb(segment_count));
 #if GRID_STRIPE
-  total_meta_segments += 6 * blkz_size_segs; // 6 zones for log?
+  total_meta_segments += 6 * blkz_size_segs;
 #else
 //  total_meta_segments += 6 * c.segs_per_zone;
   total_meta_segments += 6 * c.segs_per_zone * meta_stripe_cnt;
@@ -598,7 +576,7 @@ static int f2fs_prepare_super_block(void)
 	diff = total_meta_segments % blkz_size_segs;
 	if (diff) {
 		set_sb(segment_count_ssa, get_sb(segment_count_ssa) +
-			(blkz_size_segs - diff)); // 多余的segments分给ssa
+			(blkz_size_segs - diff));
   }
   MSG(1, "Debug: total meta segs : %lu, diff : %lu, seg count ssa : %u\n",
     total_meta_segments, diff, get_sb(segment_count_ssa));
@@ -737,8 +715,7 @@ static int f2fs_prepare_super_block(void)
 	set_sb(section_count, total_zones * c.secs_per_zone);
 	set_sb(segment_count_main, get_sb(section_count) * c.segs_per_sec);
 
-  	MSG(1, "(%s:%d) segment_count_main : %u [by tt]\n",
-			__func__, __LINE__, get_sb(segment_count_main));
+  
 	/*
 	 * Let's determine the best reserved and overprovisioned space.
 	 * For Zoned device, if zone capacity less than zone size, the segments
@@ -746,15 +723,13 @@ static int f2fs_prepare_super_block(void)
 	 * overprovision ratio and reserved seg count based on avg usable
 	 * segs_per_sec.
 	 */
-	// 【TODO】设置OP
 	if (c.overprovision == 0)
 		c.overprovision = get_best_overprovision(sb);
 
 	c.reserved_segments =
 			(2 * (100 / c.overprovision + 1) + NR_CURSEG_TYPE) *
 			round_up(f2fs_get_usable_segments(sb), get_sb(section_count));
-	MSG(1, "(%s:%d) c.overprovision: %f, c.reserved_segments: %u, f2fs_get_usable_segments(sb): %u, section_count:%u. by tt\n",
-			__func__, __LINE__, c.overprovision, c.reserved_segments, f2fs_get_usable_segments(sb), get_sb(section_count));
+
 	if (c.feature & cpu_to_le32(F2FS_FEATURE_RO)) {
 		c.overprovision = 0;
 		c.reserved_segments = 0;
@@ -827,7 +802,6 @@ static int f2fs_prepare_super_block(void)
 		c.cur_seg[CURSEG_COLD_DATA] = 0;
 		c.cur_seg[CURSEG_WARM_DATA] = next_zone(CURSEG_COLD_DATA);
 	} else if (c.zoned_mode) {
-		// 获取main area中的6个log stream的起始segment number
 		c.cur_seg[CURSEG_HOT_NODE] = 0;
 		c.cur_seg[CURSEG_WARM_NODE] = next_zone(CURSEG_HOT_NODE);
 		c.cur_seg[CURSEG_COLD_NODE] = next_zone(CURSEG_WARM_NODE);
@@ -847,7 +821,7 @@ static int f2fs_prepare_super_block(void)
 					next_zone(CURSEG_COLD_DATA));
 	}
 #if SEP_SSA
-	printf("(%s:%d) c.cur_seg[CURSEG_HOT/WARM/COLD_NODE/DATA] segno: %u %u %u %u %u %u\n"
+	printf("(%s : %d) segno: %u %u %u %u %u %u\n"
 			, __func__, __LINE__, 
         c.cur_seg[CURSEG_HOT_NODE],
         c.cur_seg[CURSEG_WARM_NODE],
@@ -891,24 +865,24 @@ static int f2fs_prepare_super_block(void)
 	}
 #if META_FOR_ZNS
 	MSG(1, "(META_FOR_ZNS) Info: \n");
-	MSG(1, "\tseg0 blkaddr : 0x%x = %u", get_sb(segment0_blkaddr), get_sb(segment0_blkaddr));
-	MSG(1, "\tcp_seg_count : 0x%x = %u\n", get_sb(segment_count_ckpt), get_sb(segment_count_ckpt));
-	MSG(1, "\tsit_blkaddr : 0x%x = %u, segment_count_sit : 0x%x = %u\n", 
-			get_sb(sit_blkaddr), get_sb(sit_blkaddr), get_sb(segment_count_sit), get_sb(segment_count_sit));
-	MSG(1, "\tnat_blkaddr : 0x%x = %u, segment_count_nat : 0x%x = %u\n", 
-			get_sb(nat_blkaddr), get_sb(nat_blkaddr), get_sb(segment_count_nat), get_sb(segment_count_nat));
-	MSG(1, "\tssa_blkaddr : 0x%x = %u, segment_count_ssa : 0x%x = %u\n", 
-			get_sb(ssa_blkaddr), get_sb(ssa_blkaddr), get_sb(segment_count_ssa), get_sb(segment_count_ssa));
-	MSG(1, "\tsit_log_blkaddr : 0x%x = %u, segment_count_sit_log : 0x%x = %u\n", 
-			get_sb(sit_log_blkaddr), get_sb(sit_log_blkaddr), get_sb(segment_count_sit_log), get_sb(segment_count_sit_log));
-	MSG(1, "\tnat_log_blkaddr : 0x%x = %u, segment_count_nat_log : 0x%x = %u\n", 
-			get_sb(nat_log_blkaddr), get_sb(nat_log_blkaddr), get_sb(segment_count_nat_log), get_sb(segment_count_nat_log));
-	MSG(1, "\tssa_log_blkaddr : 0x%x = %u, segment_count_ssa_log : 0x%x = %u\n", 
-			get_sb(ssa_log_blkaddr), get_sb(ssa_log_blkaddr), get_sb(segment_count_ssa_log), get_sb(segment_count_ssa_log));
-	MSG(1, "\tmain_blkaddr : 0x%x = %u, segment_count_main : 0x%x = %u\n", 
-			get_sb(main_blkaddr), get_sb(main_blkaddr), get_sb(segment_count_main), get_sb(segment_count_main));
-	MSG(1, "\tsection count : 0x%x = %u, segment count : 0x%x = %u\n", 
-			get_sb(section_count), get_sb(section_count), get_sb(segment_count), get_sb(segment_count));
+	MSG(1, "\tseg0 blkaddr : 0x%x", get_sb(segment0_blkaddr));
+	MSG(1, "\tcp_seg_count : 0x%x\n", get_sb(segment_count_ckpt));
+	MSG(1, "\tsit_blkaddr : 0x%x, segment_count_sit : 0x%x\n", 
+			get_sb(sit_blkaddr), get_sb(segment_count_sit));
+	MSG(1, "\tnat_blkaddr : 0x%x, segment_count_nat : 0x%x\n", 
+			get_sb(nat_blkaddr), get_sb(segment_count_nat));
+	MSG(1, "\tssa_blkaddr : 0x%x, segment_count_ssa : 0x%x\n", 
+			get_sb(ssa_blkaddr), get_sb(segment_count_ssa));
+	MSG(1, "\tsit_log_blkaddr : 0x%x, segment_count_sit_log : 0x%x\n", 
+			get_sb(sit_log_blkaddr), get_sb(segment_count_sit_log));
+	MSG(1, "\tnat_log_blkaddr : 0x%x, segment_count_nat_log : 0x%x\n", 
+			get_sb(nat_log_blkaddr), get_sb(segment_count_nat_log));
+	MSG(1, "\tssa_log_blkaddr : 0x%x, segment_count_ssa_log : 0x%x\n", 
+			get_sb(ssa_log_blkaddr), get_sb(segment_count_ssa_log));
+	MSG(1, "\tmain_blkaddr : 0x%x, segment_count_main : 0x%x\n", 
+			get_sb(main_blkaddr), get_sb(segment_count_main));
+	MSG(1, "\tsection count : 0x%x, segment count : 0x%x\n", 
+			get_sb(section_count), get_sb(segment_count));
 
 #endif
 	return 0;
@@ -952,8 +926,6 @@ static int f2fs_init_sit_area(void)
 	for (j = 0; j < zone_cnt; j+=2){
 		sit_seg_addr = get_sb(sit_blkaddr) * (__u64) blk_size;
 		sit_seg_addr +=  j * zone_size;
-		// j = 0: sit_seg_addr = sit_seg_addr
-		// j = 2: sit_seg_addr = sit_seg_addr + 2 * zone_size【TODO】交错写入不相邻的两个zone
 		MSG(1, "(%s %d) sit_seg_byte_adddr %lu\n", __func__, __LINE__,
 			sit_seg_addr);
 		//sit_seg_addr = get_sb(sit_blkaddr) << get_sb(log_ blocksize) + j * zone_size;
@@ -1049,7 +1021,6 @@ static int __f2fs_init_nat_area(void){
 	/* fill the first zone */
 	DBG(1, "\tFilling nat area at offset 0x%08"PRIx64"\n", nat_seg_addr);
 	//the first page was already written to device
-	// 从nat_seg_addr + blk_size开始，是因为前面f2fs_update_nat_root已经写入了一个有效的nat block
 	if (dev_fill(nat_buf, nat_seg_addr + blk_size, seg_size - blk_size)) {
 		MSG(1, "\tError: While zeroing out the nat area "
 				"on disk!!!\n");
@@ -1058,8 +1029,6 @@ static int __f2fs_init_nat_area(void){
 	}
 	nat_seg_addr = nat_seg_addr + seg_size;
 	
-	// reset后面的nat area
-	// index从1开始，是因为第0个segment的前面已经Reset了
 	for (index = 1; index < zone_cap_segs; index++) {
 		if (dev_fill(nat_buf, nat_seg_addr, seg_size)) {
 			MSG(1, "\tError: While zeroing out the nat area "
@@ -1069,8 +1038,6 @@ static int __f2fs_init_nat_area(void){
 		}
 		nat_seg_addr = nat_seg_addr + seg_size;
 	}
-	MSG(1, "\t(__f2fs_init_nat_area) zeroing out the nat area offset 0x%lu, j = 0\n", nat_seg_addr);
-
 	/* fill usable blocks of last segment in blks*/
 	if(unusable_blks){
 		if (dev_fill(nat_buf, nat_seg_addr, seg_size - unusable_blks)) {
@@ -1082,10 +1049,8 @@ static int __f2fs_init_nat_area(void){
 	}
 	
 	/* fill another zone in NAT set 1 */
-	// 【TODO】nat area: 0x300000和0x500000
 	for (j = 2; j < zone_cnt; j+=2) {
 		nat_seg_addr = get_sb(nat_blkaddr) * blk_size + j*zone_size;
-		MSG(1, "\t(__f2fs_init_nat_area) zeroing out the nat area offset 0x%lu, j = 2\n", nat_seg_addr);
 		for (index = 0; index < zone_cap_segs; index++) {
 			if (dev_fill(nat_buf, nat_seg_addr, seg_size)) {
 				MSG(1, "\tError: While zeroing out the nat area "
@@ -1110,7 +1075,6 @@ static int __f2fs_init_nat_area(void){
 	return 0 ;
 
 }
-// 这里的nat什么也不做
 static int f2fs_init_nat_area(void){
 	return 0;
 }
@@ -1178,7 +1142,6 @@ static int f2fs_write_check_point_pack(void)
 		MSG(1, "\tError: Calloc failed for f2fs_checkpoint!!!\n");
 		return ret;
 	}
-	// cp是全局的struct f2fs_checkpoint
 	cp = calloc(F2FS_BLKSIZE, 1);
 	if (cp == NULL) {
 		MSG(1, "\tError: Calloc failed for f2fs_checkpoint!!!\n");
@@ -1193,43 +1156,29 @@ static int f2fs_write_check_point_pack(void)
 #endif
 
 	
-	// sum: f2fs_summary_block
+
 	sum = calloc(F2FS_BLKSIZE, 1);
 	if (sum == NULL) {
 		MSG(1, "\tError: Calloc failed for summary_node!!!\n");
 		goto free_cp;
 	}
 
-	// sum_compact: char*
 	sum_compact = calloc(F2FS_BLKSIZE, 1);
 	if (sum_compact == NULL) {
 		MSG(1, "\tError: Calloc failed for summary buffer!!!\n");
 		goto free_sum;
 	}
-	// sum_compact_p: char*
 	sum_compact_p = sum_compact;
 
-	// 【TODO】不懂，nat bitmap？
-    //共有多少个node block, 用byte表示
-    //为什么<<5呢(segment_count_nat * 32)?
-    //segment_count_nat是两份nat, 一份就是segment_count_nat/2
-    //共有block数为segment_count_nat * 512 /2,所以用byte再除以8
-    //最终结果就是get_sb(segment_count_nat) << 5;
 	nat_bits_bytes = get_sb(segment_count_nat) << 5;
-	//用block表示
-	// << 1: 因为 checkpoint pack 中需要放两份（对应两个 checkpoint pack 或主/备拷贝）
-	// 额外头部信息：CRC 校验值（8 bytes）
-	// + F2FS_BLKSIZE - 1 → 典型的 “向上对齐到 block 边界
 	nat_bits_blocks = F2FS_BYTES_TO_BLK((nat_bits_bytes << 1) + 8 +
 						F2FS_BLKSIZE - 1);
-	// 分配nat_bits_blocks个block的空间
 	nat_bits = calloc(F2FS_BLKSIZE, nat_bits_blocks);
 	if (nat_bits == NULL) {
 		MSG(1, "\tError: Calloc failed for nat bits buffer!!!\n");
 		goto free_sum_compact;
 	}
 
-	// cp_payload: char*
 	cp_payload = calloc(F2FS_BLKSIZE, 1);
 	if (cp_payload == NULL) {
 		MSG(1, "\tError: Calloc failed for cp_payload!!!\n");
@@ -1239,29 +1188,21 @@ static int f2fs_write_check_point_pack(void)
 	/* 1. cp page 1 of checkpoint pack 1 */
 	srand((c.fake_seed) ? 0 : time(NULL));
 	cp->checkpoint_ver = cpu_to_le64(rand() | 0x1);
-	set_cp(cur_node_segno[0], c.cur_seg[CURSEG_HOT_NODE]); // 0
-	set_cp(cur_node_segno[1], c.cur_seg[CURSEG_WARM_NODE]); // 1022
+	set_cp(cur_node_segno[0], c.cur_seg[CURSEG_HOT_NODE]);
+	set_cp(cur_node_segno[1], c.cur_seg[CURSEG_WARM_NODE]);
 	set_cp(cur_node_segno[2], c.cur_seg[CURSEG_COLD_NODE]);
 	set_cp(cur_data_segno[0], c.cur_seg[CURSEG_HOT_DATA]);
 	set_cp(cur_data_segno[1], c.cur_seg[CURSEG_WARM_DATA]);
 	set_cp(cur_data_segno[2], c.cur_seg[CURSEG_COLD_DATA]);
-	// MAX_ACTIVE_NODE_LOGS = 8，因此从3开始，后面5个都设置为无效值0xffffffff
 	for (i = 3; i < MAX_ACTIVE_NODE_LOGS; i++) {
 		set_cp(cur_node_segno[i], 0xffffffff);
 		set_cp(cur_data_segno[i], 0xffffffff);
 	}
 
-	// lpf: lost +(plus) found
-	// cur_node_blkoff[0]: HOT NODE
-	// cur_data_blkoff[0]: HOT DATA
-	// c.quota_inum = quota 文件的 inode block 数
-	// c.lpf_inum = lost+found 目录的 inode block 数
-	// _dnum是数据块数
 	set_cp(cur_node_blkoff[0], 1 + c.quota_inum + c.lpf_inum);
 	set_cp(cur_data_blkoff[0], 1 + c.quota_dnum + c.lpf_dnum);
 	set_cp(valid_block_count, 2 + c.quota_inum + c.quota_dnum +
 			c.lpf_inum + c.lpf_dnum);
-	// c.reserved_segments是在f2fs_prepare_superblock时根据OP设置
 	set_cp(rsvd_segment_count, c.reserved_segments);
 
 	/*
@@ -1289,13 +1230,10 @@ static int f2fs_write_check_point_pack(void)
 		set_cp(user_block_count, ((get_cp(free_segment_count) + 2 -
 			get_cp(overprov_segment_count)) * c.blks_per_seg));
 	} else {
-		//【TODO】为什么这里是减6（因为需要用到6个log stream，这6个正在使用，因此不包含在free）
 		set_cp(free_segment_count, f2fs_get_usable_segments(sb) - 6);
 		set_cp(user_block_count, ((get_cp(free_segment_count) + 6 -
 		get_cp(overprov_segment_count)) * c.blks_per_seg));
 	}
-	MSG(0, "【Info】: user_block_count: %llu, free_segment_count: %u, overprov_segment_count: %u, c.blks_per_seg: %u\n",
-				get_cp(user_block_count), get_cp(free_segment_count), get_cp(overprov_segment_count), c.blks_per_seg);
 	/* cp page (2), data summaries (1), node summaries (3) */
 	set_cp(cp_pack_total_block_count, 6 + get_sb(cp_payload));
 	flags = CP_UMOUNT_FLAG | CP_COMPACT_SUM_FLAG;
@@ -1315,7 +1253,7 @@ static int f2fs_write_check_point_pack(void)
 	set_cp(valid_inode_count, 1 + c.quota_inum + c.lpf_inum);
 	set_cp(next_free_nid, c.next_free_nid);
 	set_cp(sit_ver_bitmap_bytesize, ((get_sb(segment_count_sit) / 2) <<
-			get_sb(log_blocks_per_seg)) / 8); // 转换为byte需要除8
+			get_sb(log_blocks_per_seg)) / 8);
 
 	set_cp(nat_ver_bitmap_bytesize, ((get_sb(segment_count_nat) / 2) <<
 			 get_sb(log_blocks_per_seg)) / 8);
@@ -1350,7 +1288,7 @@ static int f2fs_write_check_point_pack(void)
 		goto free_cp_payload;
 	}
 
-	cp_seg_blk = get_sb(segment0_blkaddr); // cp从segment0开始写入
+	cp_seg_blk = get_sb(segment0_blkaddr);
 
 	DBG(1, "\tWriting main segments, cp at offset 0x%08"PRIx64"\n",
 						cp_seg_blk);
@@ -1359,13 +1297,11 @@ static int f2fs_write_check_point_pack(void)
 		goto free_cp_payload;
 	}
 
-	// 如果有cp_payload，需要增加cp blkaddr
 	for (i = 0; i < get_sb(cp_payload); i++) {
 		cp_seg_blk++;
 #if META_FOR_ZNS
 		if (dev_write_block(cp_payload, cp_seg_blk)) {
 #else
-		// dev_fill_block是填充0
 		if (dev_fill_block(cp_payload, cp_seg_blk)) {
 #endif
 			MSG(1, "\tError: While zeroing out the sit bitmap area "
@@ -1374,7 +1310,6 @@ static int f2fs_write_check_point_pack(void)
 		}
 	}
 
-	// 将下面5个数据compact到一个block中(sum_compact)
 	/* Prepare and write Segment summary for HOT/WARM/COLD DATA
 	 *
 	 * The structure of compact summary
@@ -1393,10 +1328,8 @@ static int f2fs_write_check_point_pack(void)
 	memset(sum, 0, sizeof(struct f2fs_summary_block));
 	SET_SUM_TYPE((&sum->footer), SUM_TYPE_DATA);
 
-	// 1.nat journal
-	journal = &sum->journal; // journal指向sum中的journal
+	journal = &sum->journal;
 	journal->n_nats = cpu_to_le16(1 + c.quota_inum + c.lpf_inum);
-	// 记录root inode的nat信息到nat journal中
 	journal->nat_j.entries[0].nid = sb->root_ino;
 	journal->nat_j.entries[0].ne.version = 0;
 	journal->nat_j.entries[0].ne.ino = sb->root_ino;
@@ -1409,15 +1342,14 @@ static int f2fs_write_check_point_pack(void)
 			continue;
 		journal->nat_j.entries[i].nid = sb->qf_ino[qtype];
 		journal->nat_j.entries[i].ne.version = 0;
-		journal->nat_j.entries[i].ne.ino = sb->qf_ino[qtype]; // nid=ino -> struct inode
+		journal->nat_j.entries[i].ne.ino = sb->qf_ino[qtype];
 		journal->nat_j.entries[i].ne.block_addr = cpu_to_le32(
 				get_sb(main_blkaddr) +
 				get_cp(cur_node_segno[0]) *
-				c.blks_per_seg + i); // 【TODO】这个时候cur_node_segno[0]并没有增加
+				c.blks_per_seg + i);
 		i++;
 	}
 
-	// lost + found
 	if (c.lpf_inum) {
 		journal->nat_j.entries[i].nid = cpu_to_le32(c.lpf_ino);
 		journal->nat_j.entries[i].ne.version = 0;
@@ -1428,30 +1360,24 @@ static int f2fs_write_check_point_pack(void)
 				c.blks_per_seg + i);
 	}
 
-	// 将nat journal compact到sum_compact_p中
 	memcpy(sum_compact_p, &journal->n_nats, SUM_JOURNAL_SIZE);
-	sum_compact_p += SUM_JOURNAL_SIZE; // 向后移动journal大小（因为已经写入了一个nat journal）
+	sum_compact_p += SUM_JOURNAL_SIZE;
 
-	// 2.sit journal
-	// 重置sum，再将其用于sit
 	memset(sum, 0, sizeof(struct f2fs_summary_block));
 
 	/* inode sit for root */
 	if (c.feature & cpu_to_le32(F2FS_FEATURE_RO))
 		journal->n_sits = cpu_to_le16(2);
 	else
-		journal->n_sits = cpu_to_le16(6); // root的sit
+		journal->n_sits = cpu_to_le16(6);
 
-	journal->sit_j.entries[0].segno = cp->cur_node_segno[0]; // 设置sit的segno
+	journal->sit_j.entries[0].segno = cp->cur_node_segno[0];
 	journal->sit_j.entries[0].se.vblocks =
 				cpu_to_le16((CURSEG_HOT_NODE << 10) |
-						(1 + c.quota_inum + c.lpf_inum)); // vblocks指定该segment包含多少个valid block。左移 10 位，说明高位部分记录段的 类型（这里是 hot node segment，热节点段）
-	// 将0号bit设置为1，表示第0个block有效.第0个block是应该是root inode
+						(1 + c.quota_inum + c.lpf_inum));
 	f2fs_set_bit(0, (char *)journal->sit_j.entries[0].se.valid_map);
-	// 将1~quota_inum的bit都设置为1
 	for (i = 1; i <= c.quota_inum; i++)
 		f2fs_set_bit(i, (char *)journal->sit_j.entries[0].se.valid_map);
-	// 如果有lost+found目录，也将对应的bit设置为1
 	if (c.lpf_inum)
 		f2fs_set_bit(i, (char *)journal->sit_j.entries[0].se.valid_map);
 
@@ -1467,53 +1393,40 @@ static int f2fs_write_check_point_pack(void)
 		if (c.lpf_dnum)
 			f2fs_set_bit(i, (char *)journal->sit_j.entries[1].se.valid_map);
 	} else {
-		// sit_j.entries[1]记录warm node对应的segment
 		journal->sit_j.entries[1].segno = cp->cur_node_segno[1];
 		journal->sit_j.entries[1].se.vblocks =
 					cpu_to_le16((CURSEG_WARM_NODE << 10));
-		// sit_j.entries[2]记录cold node对应的segment
 		journal->sit_j.entries[2].segno = cp->cur_node_segno[2];
 		journal->sit_j.entries[2].se.vblocks =
 					cpu_to_le16((CURSEG_COLD_NODE << 10));
 
 		/* data sit for root */
-		// sit_j.entries[2]记录hot data对应的segment
 		journal->sit_j.entries[3].segno = cp->cur_data_segno[0];
 		journal->sit_j.entries[3].se.vblocks =
 					cpu_to_le16((CURSEG_HOT_DATA << 10) |
-							(1 + c.quota_dnum + c.lpf_dnum)); // 1 + c.quota_dnum + c.lpf_dnum是root dentry + quota文件 + lost+found目录
-		// 设置root dentry + quota文件 + lost+found目录对应的bit为1
+							(1 + c.quota_dnum + c.lpf_dnum));
 		f2fs_set_bit(0, (char *)journal->sit_j.entries[3].se.valid_map);
 		for (i = 1; i <= c.quota_dnum; i++)
 			f2fs_set_bit(i, (char *)journal->sit_j.entries[3].se.valid_map);
 		if (c.lpf_dnum)
 			f2fs_set_bit(i, (char *)journal->sit_j.entries[3].se.valid_map);
 
-		// sit_j.entries[4]记录warm data对应的segment
 		journal->sit_j.entries[4].segno = cp->cur_data_segno[1];
 		journal->sit_j.entries[4].se.vblocks =
 					cpu_to_le16((CURSEG_WARM_DATA << 10));
-		// sit_j.entries[5]记录cold data对应的segment
 		journal->sit_j.entries[5].segno = cp->cur_data_segno[2];
 		journal->sit_j.entries[5].se.vblocks =
 					cpu_to_le16((CURSEG_COLD_DATA << 10));
 	}
 
-	// 将sit journal compact到sum_compact_p中
 	memcpy(sum_compact_p, &journal->n_sits, SUM_JOURNAL_SIZE);
 	sum_compact_p += SUM_JOURNAL_SIZE;
 
-	// SSA
-	// 记录每个data block属于哪个node block
 	/* hot data summary */
-	// 从当前的sum_compact_p位置开始，就是hot data summary的位置。
-	// 将其转换为struct f2fs_summary类型的数组。转换后可以直接用结构体语法，而不是复杂的指针计算
-	// sum_entry[0]存放root dentry所在block的SSA
 	sum_entry = (struct f2fs_summary *)sum_compact_p;
 	sum_entry->nid = sb->root_ino;
 	sum_entry->ofs_in_node = 0;
 
-	// sum_entry[1~]存放quota所在block的SSA
 	off = 1;
 	for (qtype = 0; qtype < F2FS_MAX_QUOTAS; qtype++) {
 		int j;
@@ -1536,7 +1449,6 @@ static int f2fs_write_check_point_pack(void)
 	/* warm data summary, nothing to do */
 	/* cold data summary, nothing to do */
 
-	// 写入
 	cp_seg_blk++;
 	DBG(1, "\tWriting Segment summary for HOT/WARM/COLD_DATA, at offset 0x%08"PRIx64"\n",
 			cp_seg_blk);
@@ -1596,7 +1508,6 @@ static int f2fs_write_check_point_pack(void)
 	}
 
 	/* cp page2 */
-	// checkpoint pack 1的page 2
 	cp_seg_blk++;
 	DBG(1, "\tWriting cp page2, at offset 0x%08"PRIx64"\n", cp_seg_blk);
 	if (dev_write_block(cp, cp_seg_blk)) {
@@ -1632,7 +1543,6 @@ static int f2fs_write_check_point_pack(void)
 		}
 #endif
 
-		// 写 NAT bits（可选）
 		DBG(1, "\tWriting NAT bits pages, at offset 0x%08"PRIx64"\n",
 					cp_seg_blk);
 
@@ -1645,17 +1555,15 @@ static int f2fs_write_check_point_pack(void)
 		}
 	}
 
-	/* 写checkpoint pack 2（冗余副本）*/
 	/* cp page 1 of check point pack 2
 	 * Initialize other checkpoint pack with version zero
 	 */
-	// (1)写page1（包含 checkpoint header、版本号、有效数据等）
-	cp->checkpoint_ver = 0; // checkpoint_ver设为0，表示这是备用checkpoint pack
+	cp->checkpoint_ver = 0;
 
-	crc = f2fs_checkpoint_chksum(cp); // 重新计算并写入 checkpoint 校验和。
+	crc = f2fs_checkpoint_chksum(cp);
 	*((__le32 *)((unsigned char *)cp + get_cp(checksum_offset))) =
 							cpu_to_le32(crc);
-	cp_seg_blk = get_sb(segment0_blkaddr) + c.blks_per_seg; // cp pack 2写到下一个segment中
+	cp_seg_blk = get_sb(segment0_blkaddr) + c.blks_per_seg;
 	DBG(1, "\tWriting cp page 1 of checkpoint pack 2, at offset 0x%08"PRIx64"\n",
 				cp_seg_blk);
 	if (dev_write_block(cp, cp_seg_blk)) {
@@ -1663,7 +1571,6 @@ static int f2fs_write_check_point_pack(void)
 		goto free_cp_payload;
 	}
 
-	// (2)写payload
 	for (i = 0; i < get_sb(cp_payload); i++) {
 		cp_seg_blk++;
 #if META_FOR_ZNS
@@ -1680,7 +1587,6 @@ static int f2fs_write_check_point_pack(void)
 	wp = cp_seg_blk + 1;
 #endif
 
-	// (3)写 page2（尾页，存放额外信息和校验和）
 	/* cp page 2 of check point pack 2 */
 	cp_seg_blk += (le32_to_cpu(cp->cp_pack_total_block_count) -
 					get_sb(cp_payload) - 1);
@@ -1731,6 +1637,7 @@ static int f2fs_write_super_block(void)
   struct blk_zone *blkz;
   struct blk_zone_range range;
   __u64 sector;
+  __u64  nr_sectors;
   int ret;
 #endif
 
@@ -1740,11 +1647,9 @@ static int f2fs_write_super_block(void)
 		return -1;
 	}
 
-	// +F2FS_SUPER_OFFSET: 前1024字节保留给主引导记录（MBR） 或引导程序
 	memcpy(zero_buff + F2FS_SUPER_OFFSET, sb, sizeof(*sb));
 	DBG(1, "\tWriting super block, at offset 0x%08x\n", 0);
 	for (index = 0; index < 2; index++) {
-		// 写入第0块和第1块（块1提供冗余备份）
 		if (dev_write_block(zero_buff, index)) {
 			MSG(1, "\tError: While while writing super_blk "
 					"on disk!!! index : %d\n", index);
@@ -1764,7 +1669,6 @@ static int f2fs_write_super_block(void)
   rep->sector = sector;
   rep->nr_zones = 1;
 
-  // 将rep信息传递给内核，内核会将对应的zone信息写入rep中
   ret = ioctl(dev->fd, BLKREPORTZONE, rep);
   if (ret != 0 || !rep->nr_zones) {
     ERR_MSG("ioctl BLKREPORTZONES failed\n");
@@ -1858,8 +1762,8 @@ static int f2fs_write_root_inode(void)
 		return -1;
 	}
 
-	raw_node->footer.nid = sb->root_ino; // 3
-	raw_node->footer.ino = sb->root_ino; // 3
+	raw_node->footer.nid = sb->root_ino;
+	raw_node->footer.ino = sb->root_ino;
 	raw_node->footer.cp_ver = cpu_to_le64(1);
 	raw_node->footer.next_blkaddr = cpu_to_le32(
 			get_sb(main_blkaddr) +
@@ -1910,26 +1814,22 @@ static int f2fs_write_root_inode(void)
 	}
 	data_blk_nor = get_sb(main_blkaddr);
 #if SEP_SSA
-// normal data blk addr calculation
-// 指向的是数据块地址hot data
   data_blk_nor += ((CURSEG_HOT_NODE - CURSEG_HOT_DATA)
-     * c.segs_per_zone * c.blks_per_seg); // CURSEG_HOT_NODE: 3, CURSEG_HOT_DATA: 0
+     * c.segs_per_zone * c.blks_per_seg);
 #else
 	data_blk_nor +=	c.cur_seg[CURSEG_HOT_DATA] * c.blks_per_seg;
 #endif
 	raw_node->i.i_addr[get_extra_isize(raw_node)] = cpu_to_le32(data_blk_nor);
 
-	// 初始化root inode的extent cache
 	raw_node->i.i_ext.fofs = 0;
 	raw_node->i.i_ext.blk_addr = 0;
 	raw_node->i.i_ext.len = 0;
 
-	// 但root node本身要写入的区域是hot node
 	main_area_node_seg_blk_offset = get_sb(main_blkaddr);
 	main_area_node_seg_blk_offset += c.cur_seg[CURSEG_HOT_NODE] *
-					c.blks_per_seg; // c.cur_seg[CURSEG_HOT_NODE]初始化为0
+					c.blks_per_seg;
 
-	DBG(1, "\tWriting root inode (hot node) at 0x%x, c.cur_seg[CURSEG_HOT_NODE]: %x, c.blks_per_seg: 0x%x, at offset 0x%08"PRIu64"\n",
+	DBG(1, "\tWriting root inode (hot node), %x %x %x at offset 0x%08"PRIu64"\n",
 			get_sb(main_blkaddr),
 			c.cur_seg[CURSEG_HOT_NODE],
 			c.blks_per_seg, main_area_node_seg_blk_offset);
@@ -2091,7 +1991,6 @@ static int f2fs_update_nat_root(void)
 	}
 
 	/* update quota */
-	// F2FS_MAX_QUOTAS = 3
 	for (qtype = i = 0; qtype < F2FS_MAX_QUOTAS; qtype++) {
 		if (!((1 << qtype) & c.quota_bits))
 			continue;
@@ -2107,19 +2006,19 @@ static int f2fs_update_nat_root(void)
 	nat_blk->entries[get_sb(root_ino)].block_addr = cpu_to_le32(
 		get_sb(main_blkaddr) +
 		c.cur_seg[CURSEG_HOT_NODE] * c.blks_per_seg);
-	nat_blk->entries[get_sb(root_ino)].ino = sb->root_ino; // 3
+	nat_blk->entries[get_sb(root_ino)].ino = sb->root_ino;
 
 	/* update node nat */
-	nat_blk->entries[get_sb(node_ino)].block_addr = cpu_to_le32(1); //【TODO】node块地址待定
-	nat_blk->entries[get_sb(node_ino)].ino = sb->node_ino; // 1
+	nat_blk->entries[get_sb(node_ino)].block_addr = cpu_to_le32(1);
+	nat_blk->entries[get_sb(node_ino)].ino = sb->node_ino;
 
 	/* update meta nat */
-	nat_blk->entries[get_sb(meta_ino)].block_addr = cpu_to_le32(1); //【TODO】meta块地址待定
-	nat_blk->entries[get_sb(meta_ino)].ino = sb->meta_ino; // 2
+	nat_blk->entries[get_sb(meta_ino)].block_addr = cpu_to_le32(1);
+	nat_blk->entries[get_sb(meta_ino)].ino = sb->meta_ino;
 
 	nat_seg_blk_offset = get_sb(nat_blkaddr);
 
-	DBG(1, "\tWriting nat root (nat area), at offset 0x%08"PRIx64"\n",
+	DBG(1, "\tWriting nat root, at offset 0x%08"PRIx64"\n",
 					nat_seg_blk_offset);
 	if (dev_write_block(nat_blk, nat_seg_blk_offset)) {
 		MSG(1, "\tError: While writing the nat_blk set0 to disk!\n");
@@ -2284,7 +2183,6 @@ static int f2fs_add_default_dentry_root(void)
 		return -1;
 	}
 
-	// 先添加.和..两个目录项
 	dent_blk->dentry[0].hash_code = 0;
 	dent_blk->dentry[0].ino = sb->root_ino;
 	dent_blk->dentry[0].name_len = cpu_to_le16(1);
@@ -2320,7 +2218,6 @@ static int f2fs_add_default_dentry_root(void)
 
 	data_blk_offset = get_sb(main_blkaddr);
 #if SEP_SSA
-// CURSEG_HOT_DATA的blk addr
   data_blk_offset += ((CURSEG_HOT_NODE - CURSEG_HOT_DATA)
      * c.segs_per_zone * c.blks_per_seg);
 #else

@@ -406,11 +406,11 @@ int f2fs_check_zones(int j)
 	 * for the device index 0.
 	 */
 #if !META_FOR_ZNS
-	if (j == 0 && dev->zoned_model == F2FS_ZONED_HM &&
-			!dev->nr_rnd_zones) {
-		ERR_MSG("No conventional zone for super block\n");
-		ret = -1;
-	}
+	// if (j == 0 && dev->zoned_model == F2FS_ZONED_HM &&
+	// 		!dev->nr_rnd_zones) {
+	// 	ERR_MSG("No conventional zone for super block\n");
+	// 	ret = -1;
+	// }
 #endif
 out:
 	free(rep);
@@ -530,11 +530,11 @@ int f2fs_print_zones(int j, uint32_t nr_zones){
 	 * for the device index 0.
 	 */
 #if !META_FOR_ZNS
-	if (j == 0 && dev->zoned_model == F2FS_ZONED_HM &&
-			!dev->nr_rnd_zones) {
-		ERR_MSG("No conventional zone for super block\n");
-		ret = -1;
-	}
+	// if (j == 0 && dev->zoned_model == F2FS_ZONED_HM &&
+	// 		!dev->nr_rnd_zones) {
+	// 	ERR_MSG("No conventional zone for super block\n");
+	// 	ret = -1;
+	// }
 #endif
 out:
 	free(rep);
@@ -642,18 +642,27 @@ uint32_t f2fs_get_usable_segments(struct f2fs_super_block *sb)
 		}
 		for (j = 0; j < c.devices[i].nr_zones; j++) {
 			zone_segs = c.devices[i].zone_cap_blocks[j] >>
-					get_sb(log_blocks_per_seg);
+					get_sb(log_blocks_per_seg); // 275712 >> 9 = 538.5
 			if (c.devices[i].zone_cap_blocks[j] %
 						DEFAULT_BLOCKS_PER_SEGMENT)
-				usable_segs += zone_segs + 1;
+				usable_segs += zone_segs + 1; // 539
 			else
 				usable_segs += zone_segs;
 		}
 	}
+	// usable_segs = 539 * 400 = 215600
+	// get_sb(main_blkaddr) - get_sb(segment0_blkaddr)) >> get_sb(log_blocks_per_seg) = (9437184-1048576=8,388,608)/512=16384
+	// 16384*2/1024=32GB
+	MSG(0, "(f2fs_get_usable_segments: 654): usable_segs=%u, log_blocks_per_seg=%u before sub. by tt\n", usable_segs, get_sb(log_blocks_per_seg));
 	usable_segs -= (get_sb(main_blkaddr) - get_sb(segment0_blkaddr)) >>
-						get_sb(log_blocks_per_seg);
+						get_sb(log_blocks_per_seg); // 18 * 275712 >> 9 = 9,693
+	// usable_segs -= ((get_sb(main_blkaddr) - get_sb(segment0_blkaddr)) / c.devices[0].zone_blocks) 
+	// 					* ((zone_segs + c.devices[0].zone_cap_blocks[0] %
+	// 					DEFAULT_BLOCKS_PER_SEGMENT) ? 1 : 0); // 18 * 275712 >> 9 = 9,693
+	MSG(0, "(f2fs_get_usable_segments: 657): usable_segs=%u after sub. by tt\n", usable_segs);
 	return usable_segs;
 #endif
+	MSG(0, "(f2fs_get_usable_segments: 660): get_sb(segment_count_main)=%u\n", get_sb(segment_count_main));
 	return get_sb(segment_count_main);
 }
 
@@ -713,6 +722,7 @@ int f2fs_reset_zones(int i)
 
 uint32_t f2fs_get_usable_segments(struct f2fs_super_block *sb)
 {
+	MSG(0, "(f2fs_get_usable_segments: 720): get_sb(segment_count_main)=%u\n", get_sb(segment_count_main));
 	return get_sb(segment_count_main);
 }
 #endif

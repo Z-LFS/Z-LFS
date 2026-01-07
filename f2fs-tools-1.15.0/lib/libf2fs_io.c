@@ -564,6 +564,7 @@ int dev_readahead(__u64 offset, size_t UNUSED(len))
 #endif
 }
 
+// д����������
 int dev_write(void *buf, __u64 offset, size_t len)
 {
 	int fd;
@@ -609,6 +610,7 @@ int dev_write_dump(void *buf, __u64 offset, size_t len)
 	return 0;
 }
 
+// ר������д ȫ 0 �����ݣ���������
 int dev_fill(void *buf, __u64 offset, size_t len)
 {
 	int fd;
@@ -733,6 +735,7 @@ int f2fs_finalize_device(void)
 	int i;
 	int ret = 0;
 
+// sparse mode是指对于稀疏文件（由大量连续的0组成），不直接存储这些0，而是记录这些0的块位置和大小（也就是元数据），从而节省存储空间。
 #ifdef HAVE_SPARSE_SPARSE_H
 	if (c.sparse_mode) {
 		int64_t chunk_start = (blocks[0] == NULL) ? -1 : 0;
@@ -795,6 +798,7 @@ int f2fs_finalize_device(void)
 		f2fs_release_sparse_resource();
 	}
 #endif
+	// 正常设备收尾
 	/*
 	 * We should call fsync() to flush out all the dirty pages
 	 * in the block device page cache.

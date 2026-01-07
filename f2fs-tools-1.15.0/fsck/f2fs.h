@@ -185,6 +185,7 @@ struct curseg_info {
 	unsigned int next_segno;                /* preallocated segment */
 };
 
+// segment management info
 struct f2fs_sm_info {
 	struct sit_info *sit_info;
 	struct curseg_info *curseg_array;

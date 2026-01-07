@@ -5,7 +5,8 @@
  * Copyright (c) 2012 Samsung Electronics Co., Ltd.
  *             http://www.samsung.com/
  */
-#define GC_THREAD_MIN_WB_PAGES		1	/*
+#define GC_THREAD_MIN_WB_PAGES		1	
+						/*
 						 * a threshold to determine
 						 * whether IO subsystem is idle
 						 * or not

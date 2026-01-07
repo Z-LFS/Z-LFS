@@ -342,13 +342,18 @@ static struct f2fs_dir_entry *find_in_level(struct inode *dir,
 	bool room = false;
 	int max_slots;
 
+	// 确定fname在该level的哪个bucket
 	nbucket = dir_buckets(level, F2FS_I(dir)->i_dir_level);
+	// 该level中的bucket有多少个block
 	nblock = bucket_blocks(level);
 
+	// 该bucket的起始block index
 	bidx = dir_block_index(level, F2FS_I(dir)->i_dir_level,
 			       le32_to_cpu(fname->hash) % nbucket);
+	// 该bucket的结束block index
 	end_block = bidx + nblock;
 
+	// 遍历这个bucket的所有block
 	for (; bidx < end_block; bidx++) {
 		/* no need to allocate new dentry pages to all the indices */
 		dentry_page = f2fs_find_data_page(dir, bidx);
@@ -362,6 +367,7 @@ static struct f2fs_dir_entry *find_in_level(struct inode *dir,
 			}
 		}
 
+		// 在该 dentry_page 中查找 fname
 		de = find_in_block(dir, dentry_page, fname, &max_slots);
 		if (IS_ERR(de)) {
 			*res_page = ERR_CAST(de);
@@ -412,6 +418,7 @@ struct f2fs_dir_entry *__f2fs_find_entry(struct inode *dir,
 		f2fs_i_depth_write(dir, max_depth);
 	}
 
+	// 在多级哈希目录树中查找 fname
 	for (level = 0; level < max_depth; level++) {
 		de = find_in_level(dir, level, fname, res_page);
 		if (de || IS_ERR(*res_page))
@@ -471,6 +478,83 @@ ino_t f2fs_inode_by_name(struct inode *dir, const struct qstr *qstr,
 
 	return res;
 }
+
+#if HOTNESS
+struct f2fs_dir_entry *f2fs_find_entry_by_ino(struct inode *dir, nid_t ino,
+					 struct page **res_page)
+{
+	unsigned long npages = dir_blocks(dir);
+	struct f2fs_dir_entry *de = NULL;
+	struct page *dentry_page = NULL;
+	struct f2fs_dentry_block *dentry_blk;
+	unsigned long n;
+	unsigned int bit_pos;
+	struct f2fs_dentry_ptr d;
+
+	if (f2fs_has_inline_dentry(dir)) {
+		struct f2fs_sb_info *sbi = F2FS_SB(dir->i_sb);
+		struct page *ipage;
+		void *inline_dentry;
+
+		ipage = f2fs_get_node_page(sbi, dir->i_ino);
+		if (IS_ERR(ipage)) {
+			*res_page = ipage;
+			return NULL;
+		}
+
+		inline_dentry = inline_data_addr(dir, ipage);
+		make_dentry_ptr_inline(dir, &d, inline_dentry);
+		
+		bit_pos = 0;
+		while (bit_pos < d.max) {
+			if (!test_bit_le(bit_pos, d.bitmap)) {
+				bit_pos++;
+				continue;
+			}
+			de = &d.dentry[bit_pos];
+			if (de->ino && le32_to_cpu(de->ino) == ino) {
+				*res_page = ipage;
+				unlock_page(ipage);
+				return de;
+			}
+			bit_pos += GET_DENTRY_SLOTS(le16_to_cpu(de->name_len));
+		}
+		f2fs_put_page(ipage, 1);
+		*res_page = NULL;
+		return NULL;
+	}
+
+	for (n = 0; n < npages; n++) {
+		dentry_page = f2fs_find_data_page(dir, n);
+		if (IS_ERR(dentry_page))
+			continue;
+
+		if (PageLocked(dentry_page))
+			unlock_page(dentry_page);
+
+		dentry_blk = page_address(dentry_page);
+		make_dentry_ptr_block(dir, &d, dentry_blk);
+
+		bit_pos = 0;
+		while (bit_pos < d.max) {
+			if (!test_bit_le(bit_pos, d.bitmap)) {
+				bit_pos++;
+				continue;
+			}
+			de = &d.dentry[bit_pos];
+			if (de->ino && le32_to_cpu(de->ino) == ino) {
+				*res_page = dentry_page;
+				return de;
+			}
+			bit_pos += GET_DENTRY_SLOTS(le16_to_cpu(de->name_len));
+		}
+
+		f2fs_put_page(dentry_page, 0);
+	}
+	*res_page = NULL;
+	return NULL;
+}
+#endif
 
 void f2fs_set_link(struct inode *dir, struct f2fs_dir_entry *de,
 		struct page *page, struct inode *inode)

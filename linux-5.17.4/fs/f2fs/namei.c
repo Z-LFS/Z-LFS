@@ -6,7 +6,7 @@
  *             http://www.samsung.com/
  */
 #include <linux/fs.h>
-#include <linux/f2fs_fs.h>
+#include <linux/f2fs_fs.h>             
 #include <linux/pagemap.h>
 #include <linux/sched.h>
 #include <linux/ctype.h>
@@ -62,6 +62,10 @@ static struct inode *f2fs_new_inode(struct inode *dir, umode_t mode)
 	inode->i_mtime = inode->i_atime = inode->i_ctime = current_time(inode);
 	F2FS_I(inode)->i_crtime = inode->i_mtime;
 	inode->i_generation = prandom_u32();
+
+#if HOTNESS
+	atomic_set(&F2FS_I(inode)->i_access_count, 0);
+#endif
 
 	if (S_ISDIR(inode->i_mode))
 		F2FS_I(inode)->i_current_depth = 1;
