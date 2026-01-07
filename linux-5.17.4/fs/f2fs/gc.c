@@ -2798,7 +2798,7 @@ int f2fs_resize_fs(struct f2fs_sb_info *sbi, __u64 block_count)
 	if (block_count == old_block_count)
 		return 0;
 
-/*
+
 	if (is_sbi_flag_set(sbi, SBI_NEED_FSCK)) {
 		f2fs_err(sbi, "Should run fsck to repair first.");
 		return -EFSCORRUPTED;
