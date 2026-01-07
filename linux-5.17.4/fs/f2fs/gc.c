@@ -2574,8 +2574,12 @@ stop:
 		list_for_each_entry(ie, &gc_list.ilist, list) {
 			if (ie->hot_visited) {
 				struct f2fs_inode_info *fi = F2FS_I(ie->inode);
+				int old = atomic_read(&fi->i_access_count);
+				int new = old - HOT_FILE_ACCESSED_THRESHOLD;
 
-				atomic_set(&fi->i_access_count, 0);
+				if (new < 0)
+					new = 0;
+				atomic_set(&fi->i_access_count, new);
 			}
 		}
 	}
