@@ -1829,17 +1829,33 @@ next_step:
 				int zone_th = sm_info->zone_hot_thresh ?
 						sm_info->zone_hot_thresh[zoneno] : 0;
 
-				if ((access > HOT_FILE_ACCESSED_THRESHOLD &&
+				if ((access >= HOT_FILE_ACCESSED_THRESHOLD &&
 					access > zone_th) || !S_ISREG(inode->i_mode)) {
+						
 				if (all_cold && *all_cold)
 					*all_cold = false;
-				/* mark this inode as hot-processed in this GC run */
+				/* mark this inode as hot-processed in this GC run,
+				 * and print its access count once when it is
+				 * first classified as a hot file.
+				 */
 				{
 					struct inode_entry *ie;
 
 					ie = radix_tree_lookup(&gc_list->iroot, inode->i_ino);
-					if (ie)
+					if (ie) {
+						if (S_ISREG(inode->i_mode) &&
+						    !ie->hot_visited &&
+						    access >= HOT_FILE_ACCESSED_THRESHOLD &&
+						    access > zone_th) {
+							f2fs_info(sbi,
+								"[zlfs][hot] ino=%lu access=%d zone_th=%d thresh=%d",
+								(unsigned long)inode->i_ino,
+								access,
+								zone_th,
+								HOT_FILE_ACCESSED_THRESHOLD);
+						}
 						ie->hot_visited = true;
+					}
 				}
 				if (gc_type == BG_GC && has_not_enough_free_secs(sbi, 0, 0)) {
 					if (locked) {
