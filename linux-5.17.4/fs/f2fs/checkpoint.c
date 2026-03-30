@@ -21,27 +21,10 @@
 #include "iostat.h"
 #include <trace/events/f2fs.h>
 
-#if DELAYED_MERGE
 #include <linux/delay.h>
 #include <linux/timer.h>
-#endif 
 
 #define DEFAULT_CHECKPOINT_IOPRIO (IOPRIO_PRIO_VALUE(IOPRIO_CLASS_BE, 3))
-
-#include "calclock.h"
-unsigned long long wcpTime, wcpCnt;
-unsigned long long wcp_waitTime, wcp_waitCnt;
-unsigned long long wait_total_submit_time, wait_total_submit_cnt;
-unsigned long long wait_total_wait_time, wait_total_submit_cnt;
-unsigned long long docpTime, docpCnt;
-unsigned long long sync_meta1_time, sync_meta1_cnt;
-unsigned long long sync_meta2_time, sync_meta2_cnt;
-unsigned long long wait_meta1_time, wait_meta1_cnt;
-unsigned long long wait_data1_time, wait_data1_cnt;
-unsigned long long wait_data2_time, wait_data2_cnt;
-unsigned long long commit_cp_time, commit_cp_cnt;
-unsigned long long unblockTime, unblockCnt;
-unsigned long long zone_finTime, zone_finCnt;
 
 static struct kmem_cache *ino_entry_slab;
 struct kmem_cache *f2fs_inode_entry_slab;
@@ -187,10 +170,16 @@ bool f2fs_is_valid_blkaddr(struct f2fs_sb_info *sbi,
 			return false;
 		break;
 	case META_SSA:
+#if SEP_SSA
+		if (unlikely(blkaddr < MAIN_BLKADDR(sbi)))
+			return false;
+		break;
+#else
 		if (unlikely(blkaddr >= MAIN_BLKADDR(sbi) ||
 			blkaddr < SM_I(sbi)->ssa_blkaddr))
 			return false;
 		break;
+#endif
 	case META_CP:
 		if (unlikely(blkaddr >= SIT_I(sbi)->sit_base_addr ||
 			blkaddr < __start_cp_addr(sbi)))
@@ -216,9 +205,20 @@ bool f2fs_is_valid_blkaddr(struct f2fs_sb_info *sbi,
 		}
 		break;
 	case META_GENERIC:
-		if (unlikely(blkaddr < SEG0_BLKADDR(sbi) ||
-			blkaddr >= MAIN_BLKADDR(sbi)))
+		if (blkaddr >= MAIN_BLKADDR(sbi)) {
+#if SEP_SSA
+			unsigned int segno = GET_SEGNO(sbi, blkaddr);
+
+			if (unlikely(segno >= MAIN_SEGS(sbi)))
+				return false;
+			if (unlikely(get_sum_block_addr(sbi, segno) != blkaddr))
+				return false;
+#else
 			return false;
+#endif
+		} else if (unlikely(blkaddr < SEG0_BLKADDR(sbi))) {
+			return false;
+		}
 		break;
 	default:
 		BUG();
@@ -300,21 +300,18 @@ int f2fs_ra_meta_pages(struct f2fs_sb_info *sbi, block_t start, int nrpages,
 			continue;
 		}
 #if META_FOR_ZNS
-#if !NAIVE_MFZ
   if (type == META_SSA) {
     //lookup log tree
 	  struct f2fs_summary_block *sum;
     struct ssa_set *head;
     struct radix_tree_root *root;
     sum = (struct f2fs_summary_block *) page_address(page);
-//    down_read(&SM_I(sbi)->ssa_ltree_slock);
 	  root = &SM_I(sbi)->ssa_log_root[SM_I(sbi)->cur_log_tree_idx];
     head = radix_tree_lookup(root, blkno);
     
     if (head) {
       memcpy(sum->entries, head->entries, SUM_ENTRY_SIZE);
       memcpy(&sum->footer, &head->footer, SUM_FOOTER_SIZE);
-//      up_read(&SM_I(sbi)->ssa_ltree_slock);
       f2fs_put_page(page, 1);
       continue;
     }
@@ -326,17 +323,13 @@ int f2fs_ra_meta_pages(struct f2fs_sb_info *sbi, block_t start, int nrpages,
       if (head) {
         memcpy(sum->entries, head->entries, SUM_ENTRY_SIZE);
         memcpy(&sum->footer, &head->footer, SUM_FOOTER_SIZE);
-//        up_read(&SM_I(sbi)->ssa_ltree_slock);
         f2fs_put_page(page, 1);
         continue;
       }
     }
-//    up_read(&SM_I(sbi)->ssa_ltree_slock);
   }
 #endif
-#endif
 		fio.page = page;
-    //printk("(%s:%d) ssa blkaddr: %u", __func__, __LINE__, fio.new_blkaddr);
 		err = f2fs_submit_page_bio(&fio);
 		f2fs_put_page(page, err ? 1 : 0);
 		if (!err)
@@ -436,10 +429,6 @@ static int f2fs_write_meta_pages(struct address_space *mapping,
 {
 	struct f2fs_sb_info *sbi = F2FS_M_SB(mapping);
 	long diff, written;
-#if META_FOR_ZNS && !DELAYED_MERGE
-	int dirty_sum_pages = get_dirty_sum_pages(sbi);
-	//printk("(%s:%d) dirty_sum_pages : %d", __func__, __LINE__, dirty_sum_pages); 
-#endif
 	if (unlikely(is_sbi_flag_set(sbi, SBI_POR_DOING)))
 		goto skip_write;
 
@@ -459,15 +448,6 @@ static int f2fs_write_meta_pages(struct address_space *mapping,
 	up_write(&sbi->cp_global_sem);
 	wbc->nr_to_write = max((long)0, wbc->nr_to_write - written - diff);
 	
-#if META_FOR_ZNS
-#if !DELAYED_MERGE
-	if (!has_curlog_space(sbi, dirty_sum_pages, SSA_LOG)){
-		//printk("(%s:%d) issue cp", __func__, __LINE__); 
-		//printk("(%s:%d) dirty_sum_pages : %d", __func__, __LINE__, dirty_sum_pages); 
-		f2fs_issue_checkpoint(sbi);
-	}
-#endif
-#endif
 	return 0;
 
 skip_write:
@@ -490,11 +470,6 @@ long f2fs_sync_meta_pages(struct f2fs_sb_info *sbi, enum page_type type,
 	struct blk_plug plug;
 #if META_FOR_ZNS
 	pgoff_t end = SIT_I(sbi)->sit_base_addr-1;
-	//int dirty_sum_pages = SM_I(sbi)->cur_sum_log;
-#if !DELAYED_MERGE
-	int dirty_sum_pages = get_dirty_sum_pages(sbi); 
-#endif
-//	printk("(%s:%d) dirty_sum_pages : %d", __func__, __LINE__, dirty_sum_pages); 
 #endif
 
 	pagevec_init(&pvec);
@@ -503,8 +478,6 @@ long f2fs_sync_meta_pages(struct f2fs_sb_info *sbi, enum page_type type,
 	while ((nr_pages = pagevec_lookup_range_tag(&pvec, mapping, &index,
 				end, PAGECACHE_TAG_DIRTY))) {
 		int i;
-		//printk("(%s:%d) nr_pages %d : , first page index : %lu", 
-		//	__func__, __LINE__, nr_pages, pvec.pages[0]->index);
 
 		for (i = 0; i < nr_pages; i++) {
 			struct page *page = pvec.pages[i];
@@ -547,23 +520,7 @@ continue_unlock:
 		cond_resched();
 	}
 	if(io_type == FS_META_IO || io_type == FS_CP_META_IO){
-#if DELAYED_MERGE
-		//printk("(%s:%d) flush_sum during sync_meta", __func__, __LINE__); 
 		__flush_sum_blks(sbi);
-#else
-		if(has_curlog_space(sbi, dirty_sum_pages, SSA_LOG)){
-			__flush_sum_blks(sbi);
-		}
-#endif
-		/*
-		else {
-			printk("(%s:%d) skip flush sum and issue cp later for merging SSA LOG",
-					__func__, __LINE__); 
-			printk("(%s:%d) dirty_sum_pages : %d",
-					__func__, __LINE__, dirty_sum_pages); 
-			//f2fs_issue_checkpoint(sbi);
-		}
-		*/
 	}
 #else
 	while ((nr_pages = pagevec_lookup_tag(&pvec, mapping, &index,
@@ -1481,26 +1438,13 @@ void f2fs_wait_on_all_pages(struct f2fs_sb_info *sbi, int type)
 			//ktime_get_raw_ts64(&ts[1]);
 			//calclock(ts, &submitTime, &submitCnt);
 		}
-#if DELAYED_MERGE
     else if (type == F2FS_MERGE_META) {
-//		  printk("(%s:%d) merge meta type pages : %lld", __func__, __LINE__, get_pages(sbi, type));
       f2fs_submit_merged_write(sbi, DATA);
     }
-#endif
-		//printk("(%s:%d) get_page(%d):%lld", __func__, __LINE__, type, get_pages(sbi, type));
 		prepare_to_wait(&sbi->cp_wait, &wait, TASK_UNINTERRUPTIBLE);
 		io_schedule_timeout(DEFAULT_IO_TIMEOUT);
 	}
 	finish_wait(&sbi->cp_wait, &wait);
-	//ktime_get_raw_ts64(&ts_total[1]);
-	//calclock(ts_total, &totalTime, &totalCnt);
-/*
-	if(type==F2FS_WB_CP_DATA || type==F2FS_MERGE_META){
-		printk("(%s:%d) %llu, %llu", __func__, __LINE__, submitTime, totalTime - submitTime);
-		wait_total_submit_time += submitTime;
-		wait_total_wait_time += (totalTime - submitTime);
-	}
-*/
 }
 
 static void update_ckpt_flags(struct f2fs_sb_info *sbi, struct cp_control *cpc)
@@ -1775,30 +1719,17 @@ static int do_checkpoint(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 	}
 
 	/* Here, we have one bio having CP pack except cp pack 2 page */
-	//ktime_get_raw_ts64(&ts[0]);
 	f2fs_sync_meta_pages(sbi, META, LONG_MAX, FS_CP_META_IO);
-	//ktime_get_raw_ts64(&ts[1]);
-	//calclock(ts, &sync_meta2_time, &sync_meta2_cnt);
 
 	/* Wait for all dirty meta pages to be submitted for IO */
-	//ktime_get_raw_ts64(&ts[0]);
 	f2fs_wait_on_all_pages(sbi, F2FS_DIRTY_META);
-	//ktime_get_raw_ts64(&ts[1]);
-	//calclock(ts, &wait_meta1_time, &wait_meta1_cnt);
 	
-/* wait for previous submitted meta pages writeback */
-	//ktime_get_raw_ts64(&ts[0]);
+  /* wait for previous submitted meta pages writeback */
 	f2fs_wait_on_all_pages(sbi, F2FS_WB_CP_DATA);
-	//ktime_get_raw_ts64(&ts[1]);
-	//calclock(ts, &wait_data1_time, &wait_data1_cnt);
 
-#if NAIVE_MFZ
-  f2fs_wait_on_all_pages(sbi, F2FS_MERGE_META);  
-#else
   if (cpc->reason & CP_UMOUNT) {
    f2fs_wait_on_all_pages(sbi, F2FS_MERGE_META);  
   }
-#endif
 
 	/* flush all device cache */
 	err = f2fs_flush_device_cache(sbi);
@@ -1809,15 +1740,8 @@ static int do_checkpoint(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 	}
 
 	/* barrier and flush checkpoint cp pack 2 page if it can */
-	//ktime_get_raw_ts64(&ts[0]);
 	commit_checkpoint(sbi, ckpt, start_blk);
-	//ktime_get_raw_ts64(&ts[1]);
-	//calclock(ts, &commit_cp_time, &commit_cp_cnt);
-	
-	//ktime_get_raw_ts64(&ts[0]);
 	f2fs_wait_on_all_pages(sbi, F2FS_WB_CP_DATA);
-	//ktime_get_raw_ts64(&ts[1]);
-	//calclock(ts, &wait_data2_time, &wait_data2_cnt);
 	
 	/*
 	 * invalidate intermediate page cache borrowed from meta inode which are
@@ -1851,7 +1775,6 @@ static int do_checkpoint(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 
 	f2fs_bug_on(sbi, get_pages(sbi, F2FS_DIRTY_DENTS));
 
-	//printk("(%s::%d) do checkpoint end", __func__, __LINE__);
 	return unlikely(f2fs_cp_error(sbi)) ? -EIO : 0;
 }
 
@@ -2151,7 +2074,6 @@ int f2fs_write_checkpoint(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 		f2fs_clear_prefree_segments(sbi, cpc);
 	}
 
-#if DELAYED_MERGE
 	// invoke merge thread
 	if (is_set_ckpt_flags(sbi, CP_SIT_MERGE_DONE_FLAG)) {
 		reset_meta_zone_towrite(sbi, SM_I(sbi)->cur_sit_log ^ 0x1, SIT_LOG);
@@ -2214,8 +2136,6 @@ int f2fs_write_checkpoint(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 		set_ckpt_flags(sbi, CP_SSA_MERGE_FLAG);
 // 		invoke merge thread
 	}
-
-#endif
 
 	f2fs_restore_inmem_curseg(sbi);
 stop:
@@ -2442,7 +2362,6 @@ void f2fs_stop_ckpt_thread(struct f2fs_sb_info *sbi)
 	}
 }
 
-#if DELAYED_MERGE
 int f2fs_merge(void *data)
 {
 	struct f2fs_sb_info *sbi = data;
@@ -2563,7 +2482,6 @@ void f2fs_stop_merge_thread(struct f2fs_sb_info *sbi)
 		kthread_stop(sbi->merge_thread);
 	}
 }
-#endif /* DELAYED_MERGE */
 
 void f2fs_init_ckpt_req_control(struct f2fs_sb_info *sbi)
 {
@@ -2602,38 +2520,22 @@ inline pgoff_t next_log_addr(struct f2fs_sb_info *sbi, int log_type){
 		log_addr += off_in_zone;
 //		log_addr = SM_I(sbi)->sit_log_blkaddr + SM_I(sbi)->sit_blks_in_log;
 		SM_I(sbi)->sit_blks_in_log++;
-#if DELAYED_MERGE
 		log_addr = log_addr + SM_I(sbi)->cur_sit_log * sbi->blocks_per_blkz;
-#endif
 	} else if (log_type == NAT_LOG) {
-#if 0//META_LOG_STRIPE
-		off_in_zone = NM_I(sbi)->nat_blks_in_log / stripe_cnt;
-		stripe_idx = NM_I(sbi)->nat_blks_in_log % stripe_cnt;
-#else 
 		off_in_zone = NM_I(sbi)->nat_blks_in_log;
-#endif
 		log_addr = NM_I(sbi)->nat_log_blkaddr + stripe_idx * sbi->blocks_per_blkz;
 		log_addr += off_in_zone;
-//		log_addr = NM_I(sbi)->nat_log_blkaddr + NM_I(sbi)->nat_blks_in_log;
 		NM_I(sbi)->nat_blks_in_log++;
 		
-//		NM_I(sbi)->nat_stripe_idx++;
-//		if (NM_I(sbi)->nat_stripe_idx > 4);
-//			NM_I(sbi)->nat_stripe_idx = 0;
-#if DELAYED_MERGE
 		log_addr = log_addr + NM_I(sbi)->cur_nat_log * sbi->blocks_per_blkz;
-#endif		
 	} else if (log_type == SSA_LOG) {
 		off_in_zone = SM_I(sbi)->sum_blks_in_log / stripe_cnt;
 		stripe_idx = SM_I(sbi)->sum_blks_in_log % stripe_cnt;
 
 		log_addr = SM_I(sbi)->sum_log_blkaddr + stripe_idx * sbi->blocks_per_blkz;
 		log_addr += off_in_zone;
-//		log_addr = SM_I(sbi)->sum_log_blkaddr + SM_I(sbi)->sum_blks_in_log;
 		SM_I(sbi)->sum_blks_in_log++;
-#if DELAYED_MERGE
 		log_addr = log_addr + SM_I(sbi)->cur_sum_log * stripe_cnt * sbi->blocks_per_blkz;
-#endif		
 	} else {
 		f2fs_bug_on(sbi, 1);
 	}
@@ -2859,7 +2761,6 @@ int reset_meta_zone_towrite(struct f2fs_sb_info *sbi,
 
 	if (log) {
 		blkstart = base;
-#if DELAYED_MERGE
 		if (type == SSA_LOG){
 #if META_LOG_STRIPE
 			blkstart = blkstart + (SM_I(sbi)->cur_sum_log ^ 0x1) * 
@@ -2872,8 +2773,6 @@ int reset_meta_zone_towrite(struct f2fs_sb_info *sbi,
 			blkstart = blkstart + (NM_I(sbi)->cur_nat_log ^ 0x1) * sbi->blocks_per_blkz;
 		else if (type == SIT_LOG)
 			blkstart = blkstart + (SM_I(sbi)->cur_sit_log ^ 0x1) * sbi->blocks_per_blkz;
-				
-#endif
 	} else {
 		blkstart = base + 2 * zone_off * sbi->blocks_per_blkz;
 		if(f2fs_test_bit(offset, bitmap) == 0)

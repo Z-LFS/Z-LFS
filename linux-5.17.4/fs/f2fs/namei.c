@@ -22,15 +22,6 @@
 #include "acl.h"
 #include <trace/events/f2fs.h>
 
-//PROFILE
-#include"calclock.h"
-#include <linux/time64.h>
-#include <linux/timekeeping.h>
-#define PROFILE 1
-
-unsigned long long unlink_time[6];
-unsigned long long unlink_cnt[6];
-
 static struct inode *f2fs_new_inode(struct inode *dir, umode_t mode)
 {
 	struct f2fs_sb_info *sbi = F2FS_I_SB(dir);
@@ -600,45 +591,30 @@ static int f2fs_unlink(struct inode *dir, struct dentry *dentry)
 	struct page *page;
 	int err;
 
-	struct timespec64 ts[2];
-
 	trace_f2fs_unlink_enter(dir, dentry);
 
 	if (unlikely(f2fs_cp_error(sbi))) {
 		err = -EIO;
 		goto fail;
 	}
-	ktime_get_raw_ts64(&ts[0]);
 	err = f2fs_dquot_initialize(dir);
 	if (err)
 		goto fail;
 	err = f2fs_dquot_initialize(inode);
 	if (err)
 		goto fail;
-	ktime_get_raw_ts64(&ts[1]);
-	calclock(ts, &unlink_time[0], &unlink_cnt[0]);
 
-	ktime_get_raw_ts64(&ts[0]);
 	de = f2fs_find_entry(dir, &dentry->d_name, &page);
 	if (!de) {
 		if (IS_ERR(page))
 			err = PTR_ERR(page);
 		goto fail;
 	}
-	ktime_get_raw_ts64(&ts[1]);
-	calclock(ts, &unlink_time[1], &unlink_cnt[1]);
 
-	ktime_get_raw_ts64(&ts[0]);
 	f2fs_balance_fs(sbi, true);
-	ktime_get_raw_ts64(&ts[1]);
-	calclock(ts, &unlink_time[2], &unlink_cnt[2]);
 
-	ktime_get_raw_ts64(&ts[0]);
 	f2fs_lock_op(sbi);
-	ktime_get_raw_ts64(&ts[1]);
-	calclock(ts, &unlink_time[3], &unlink_cnt[3]);
 	
-	ktime_get_raw_ts64(&ts[0]);
 	err = f2fs_acquire_orphan_inode(sbi);
 	if (err) {
 		f2fs_unlock_op(sbi);
@@ -656,15 +632,10 @@ static int f2fs_unlink(struct inode *dir, struct dentry *dentry)
 	if (IS_CASEFOLDED(dir))
 		d_invalidate(dentry);
 #endif
-	ktime_get_raw_ts64(&ts[1]);
-	calclock(ts, &unlink_time[4], &unlink_cnt[4]);
 	f2fs_unlock_op(sbi);
 
-	ktime_get_raw_ts64(&ts[0]);
 	if (IS_DIRSYNC(dir))
 		f2fs_sync_fs(sbi->sb, 1);
-	ktime_get_raw_ts64(&ts[1]);
-	calclock(ts, &unlink_time[5], &unlink_cnt[5]);
 fail:
 	trace_f2fs_unlink_exit(inode, err);
 	return err;

@@ -96,20 +96,6 @@ static inline void sanity_check_seg_type(struct f2fs_sb_info *sbi,
 
 #define GET_SEGOFF_FROM_SEG0(sbi, blk_addr)	((blk_addr) - SEG0_BLKADDR(sbi))
 
-#if !GRID_STRIPE
-#define START_BLOCK(sbi, segno)	(SEG0_BLKADDR(sbi) +			\
-	 (GET_R2L_SEGNO(FREE_I(sbi), segno) << (sbi)->log_blocks_per_seg))
-
-#define NEXT_FREE_BLKADDR(sbi, curseg)					\
-	(START_BLOCK(sbi, (curseg)->segno) + (curseg)->next_blkoff)
-
-#define GET_SEGNO_FROM_SEG0(sbi, blk_addr)				\
-	(GET_SEGOFF_FROM_SEG0(sbi, blk_addr) >> (sbi)->log_blocks_per_seg)
-#define GET_BLKOFF_FROM_SEG0(sbi, blk_addr)				\
-	(GET_SEGOFF_FROM_SEG0(sbi, blk_addr) & ((sbi)->blocks_per_seg - 1))
-
-#endif // !GRID_STRIPE
-
 #define GET_SUM_TYPE(footer) ((footer)->entry_type)
 #define SET_SUM_TYPE(footer, type) ((footer)->entry_type = (type))
 
@@ -242,9 +228,7 @@ struct sit_info {
 #if META_FOR_ZNS
 	unsigned long *sit_log_bitmap;
 	unsigned int logged_sentries;
-#if DELAYED_MERGE
 	unsigned long *sit_merge_bitmap;
-#endif
 #endif
 #ifdef CONFIG_F2FS_CHECK_FS
 	char *sit_bitmap_mir;		/* SIT bitmap mirror */
@@ -330,7 +314,6 @@ struct curseg_info {
 	 */
 	unsigned int *allocated_segs;
 	unsigned int stripe_idx;
-#if DYNAMIC_STRIPE
 //MAX striping 128   
   unsigned int cursor;
   unsigned int wanted_size;
@@ -348,7 +331,6 @@ struct curseg_info {
   unsigned int reclaimable_zones[128];
   unsigned int reclaimable_start, reclaimable_end;
   spinlock_t reclaimable_lock;
-#endif
 #endif
 };
 
@@ -526,6 +508,9 @@ static inline void __set_test_and_free(struct f2fs_sb_info *sbi,
 	unsigned int start_segno = GET_SEG_FROM_SEC(sbi, secno);
 	unsigned int next;
 	unsigned int usable_segs = f2fs_usable_segs_in_sec(sbi, segno);
+#if IGZO
+  int ig = secno % IG_NR;
+#endif
 
 	spin_lock(&free_i->segmap_lock);
 	if (test_and_clear_bit(segno, free_i->free_segmap)) {
@@ -536,8 +521,15 @@ static inline void __set_test_and_free(struct f2fs_sb_info *sbi,
 		next = find_next_bit(free_i->free_segmap,
 				start_segno + sbi->segs_per_sec, start_segno);
 		if (next >= start_segno + usable_segs) {
-			if (test_and_clear_bit(secno, free_i->free_secmap))
+			if (test_and_clear_bit(secno, free_i->free_secmap)) {
 				free_i->free_sections++;
+#if IGZO
+        spin_lock(&SM_I(sbi)->ig_lock);
+        SM_I(sbi)->free_sz_cnt[ig]++;
+        SM_I(sbi)->prefree_sz_cnt[ig]--;
+        spin_unlock(&SM_I(sbi)->ig_lock);
+#endif
+      }
 		}
 	}
 skip_free:
@@ -676,6 +668,24 @@ static inline bool has_not_enough_free_secs(struct f2fs_sb_info *sbi,
 		(node_secs + 2 * dent_secs + imeta_secs +
 		reserved_sections(sbi) + needed);
 }
+
+#if IGZO
+static inline int get_least_free_IG(struct f2fs_sb_info *sbi) {
+  struct f2fs_sm_info *sm_i = SM_I(sbi);
+  int target_IG = 0;
+  int i;
+  for (i = 1; i < IG_NR; i++) {
+    if (sm_i->free_sz_cnt[target_IG] < sm_i->free_sz_cnt[i]) {
+      target_IG = i;
+    }
+  }
+  return target_IG;
+}
+
+static inline bool is_gc_intensive(struct f2fs_sb_info *sbi) {
+  return (free_segments(sbi) <= overprovision_segments(sbi));
+}
+#endif
 
 static inline bool f2fs_is_checkpoint_ready(struct f2fs_sb_info *sbi)
 {
@@ -1018,8 +1028,6 @@ wake_up:
 	wake_up_interruptible_all(&dcc->discard_wait_queue);
 }
 
-#if GRID_STRIPE
-
 #define BLKS_PER_SUBSEG(sbi) (SM_I(sbi)->grid_cnt? \
   ((sbi)->blocks_per_seg / SM_I(sbi)->grid_cnt) : (sbi)->blocks_per_seg)
 
@@ -1141,8 +1149,6 @@ static inline unsigned int GET_BLKOFF_FROM_SEG0(struct f2fs_sb_info *sbi,
   return blkoff_in_seg;
 }
 #endif
-
-#endif //GRID_STRIPE
 
 #define GET_SEGNO(sbi, blk_addr)					\
 	((!__is_valid_data_blkaddr(blk_addr)) ?			\

@@ -2119,16 +2119,11 @@ next:
 		start_segno = GET_SEG_FROM_SEC(sbi, secno);
 		if (!IS_CURSEC(sbi, secno) &&
 			!get_valid_blocks(sbi, start, true)) {
-#if GRID_STRIPE
       for (i=0;i<SM_I(sbi)->grid_cnt;i++){
 			  f2fs_issue_discard(sbi, 
           START_BLOCK(sbi, start_segno) + i * sbi->blocks_per_blkz,
 			    sbi->blocks_per_blkz);
       }
-#else
-			f2fs_issue_discard(sbi, START_BLOCK(sbi, start_segno),
-				sbi->segs_per_sec << sbi->log_blocks_per_seg);
-#endif
     }
 		start = start_segno + sbi->segs_per_sec;
 		if (start < end)
@@ -2535,11 +2530,7 @@ static void insert_ssa_log(struct f2fs_sb_info *sbi, unsigned int segno,
 	struct ssa_set *head;
 	unsigned long long ckpt_ver;
 	struct radix_tree_root *root;
-#if DELAYED_MERGE
 	root = &SM_I(sbi)->ssa_log_root[SM_I(sbi)->cur_log_tree_idx];
-#else
-	root = &SM_I(sbi)->ssa_log_root;
-#endif
 	
 	if (!root) {
 		f2fs_bug_on(sbi, 1);
@@ -2659,7 +2650,7 @@ static int is_next_segment_free(struct f2fs_sb_info *sbi,
 }
 #if IGZO
 static void get_new_segment_from_IG(struct f2fs_sb_info *sbi,
-			unsigned int *newseg, bool new_sec, int dir, int target_IG)
+			unsigned int *newseg, bool new_sec, int dir, int *target_IG)
 {
 	struct free_segmap_info *free_i = FREE_I(sbi);
 	unsigned int segno, secno, zoneno;
@@ -2668,6 +2659,8 @@ static void get_new_segment_from_IG(struct f2fs_sb_info *sbi,
 	unsigned int old_zoneno = GET_ZONE_FROM_SEG(sbi, *newseg);
 	unsigned int left_start = hint;
 	bool init = true;
+	unsigned int searched_secs = 0;
+  bool retry = false;
 	int go_left = 0;
 	int i;
 
@@ -2680,6 +2673,29 @@ static void get_new_segment_from_IG(struct f2fs_sb_info *sbi,
 			goto got_it;
 	}
 find_other_zone:
+	searched_secs++;
+  if (searched_secs >= MAIN_SECS(sbi)) {
+    /* There is no suitable one for this IG. */
+    /* Select the least used IG as a target */
+    if (!retry) {
+      *target_IG = get_least_free_IG(sbi);
+      searched_secs = 0;
+      goto find_other_zone;
+    }
+
+    int i;
+    f2fs_warn(sbi, "F2FS: No free section in target_IG(%d)", *target_IG);
+    for (i = 0; i < IG_NR; i++)
+      pr_warn("F2FS: free_sz_cnt[%d] = %u\n", i, SM_I(sbi)->free_sz_cnt[i]);
+    for (i = 0; i < IG_NR; i++)
+      pr_warn("F2FS: prefree_sz_cnt[%d] = %u\n", i, SM_I(sbi)->prefree_sz_cnt[i]);
+
+    spin_unlock(&free_i->segmap_lock);
+    *newseg = NULL_SEGNO; /* Indicate failure */
+    f2fs_stop_checkpoint(sbi, false);
+    return;
+  }
+
 	secno = find_next_zero_bit(free_i->free_secmap, MAIN_SECS(sbi), hint);
 	if (secno >= MAIN_SECS(sbi)) {
 		if (dir == ALLOC_RIGHT) {
@@ -2739,7 +2755,7 @@ skip_left:
 	}
 got_it:
   // check found section is in target_IG 
-  if (new_sec && (GET_IG_FROM_SEC(sbi, secno) != target_IG)) {
+  if (new_sec && secno < MAIN_SECS(sbi) && (GET_IG_FROM_SEC(sbi, secno) != *target_IG)) {
     hint = secno + 1;
     goto find_other_zone;
   }
@@ -2934,139 +2950,12 @@ static void new_curseg(struct f2fs_sb_info *sbi, int type, bool new_sec)
 				prandom_u32() % sbi->max_fragment_chunk + 1;
 }
 #if STRIPE
-#if 0
-static unsigned int get_section(struct f2fs_sb_info *sbi, unsigned int g_idx) {
-  struct f2fs_sm_info *sm_i = SM_I(sbi);
-  unsigned int secno = NULL_SECNO;
-
-  for (int i=0;i<sm_i->alloc_ready_max;i++){
-    secno = sm_i->alloc_ready_list[IG_SIZE * i + g_idx];
-    if (secno != NULL_SECNO) {
-      break;
-    
-  return secno;
-}
-static void dump_ready_lists(struct f2fs_sb_info *sbi){
-  for (int i = 0;i < sm_i->alloc_ready_max * IG_SIZE; i++) {
-    
-  }
-  
-}
-static int write_for_reserve(struct f2fs_sb_info *sbi, unsigned int secno){
-  block_t start_addr = START_BLOCK(sbi, segno);
-  block_t target_addr;
-  struct bio *bio;
-  struct f2fs_sm_info *sm_i = SM_I(sbi);
-  struct page *pages[IG_SIZE];
-  ret = 0;
-
-  printk("(%s:%d) rsrv %dth IG with sec %u", __func__, __LINE__,
-    sm_i->next_g_idx, secno);
-
-  for (int i = 0; i < IG_SIZE; i++) {
-    void *addr;
-    // alloc and init dummy page
-    pages[i] = mempool_alloc(sbi->write_io_dummy,
-      GFP_NOIO | __GFP_NOFAIL);
-    f2fs_bug_on(sbi, !page);
-
-    lock_page(page);
-    zero_user_segment(page, 0, PAGE_SIZE);
-    addr = page_address(page);
-    if (addr) {
-      *(int *) addr = sm_i->next_g_idx;
-    }
-    set_page_private_dummy(page);
-
-    // alloc and init bio
-    bio = bio_alloc(GFP_KERNEL, 1);
-    if (!bio) {
-      f2fs_bug_on(sbi, 1);
-      ret = -ENOMEM;
-      break;
-    }
-
-    target_addr = start_addr + i * sbi->blocks_per_blkz;
-    f2fs_target_device(sbi, target_addr, bio);
-    bio->bi_opf = REQ_OP_WRITE;
-    bio->bi_end_io = f2fs_reserve_write_end_io;
-    bio->bi_private = sbi;
-
-    // submit bio
-    if (bio_add_page(bio, page, PAGE_SIZE, 0) < PAGE_SIZE) {
-      f2fs_bug_on(sbi, 1);
-    }
-    submit_bio(bio);  
-    printk("(%s:%d) bio to (%lu) submission done",
-      __func__, __LINE__, bio->bi_iter.bi_sector);
-  } 
-  printk("(%s:%d) all bio submission done", __func__, __LINE__);
-  
-  // wait writing pages
-  for (int i = 0; i < IG_SIZE; i++) {
-    if (PageWriteback(pages[i])) {
-      wait_on_page_writeback(pages[i]);
-    }
-  }
-  printk("(%s:%d) bio completion wait done", __func__, __LINE__);
-
-  return ret;
-}
-
-static unsigned int reserve_section(struct f2fs_sb_info *sbi) {
-  unsigned int secno = NULL_SECNO;
-  struct f2fs_sm_info *sm_i = SM_I(sbi);
-
-	spin_lock(&free_i->segmap_lock);
-
-	secno = find_next_zero_bit(free_i->free_secmap, MAIN_SECS(sbi), sm_i->rsrv_hint);
-	if (secno >= MAIN_SECS(sbi)) {
-    secno = find_first_zero_bit(free_i->free_secmap,
-            MAIN_SECS(sbi));
-    f2fs_bug_on(sbi, secno >= MAIN_SECS(sbi));
-	}
-	if (!test_and_set_bit(secno, free_i->free_secmap))
-		free_i->free_sections--;
-
-	spin_unlock(&free_i->segmap_lock);
-
-  return secno;
-}
-
-static int ready_szone(struct f2fs_sb_info *sbi){
-  struct f2fs_sm_info *sm_i = SM_I(sbi);
-
-  int g_idx = sm_i->next_g_idx;
-  unsigned int secno = NULL_SECNO;
-  int ret = 0;
-  // find free section
-  secno = reserve_section(sbi);
-
-  // write the first block of each zone in the superzone
-  ret = write_for_reserve(sbi, secno);
-
-  sm_i->next_g_idx = (sm_i->next_g_idx + 1) % 16;
-  return secno;
-
-}
-
-static int init_ready_list(struct f2fs_sb_info *sbi) {
-  struct f2fs_sm_info *sm_i = SM_I(sbi);
-  int g_idx = sm_i->next_g_idx;
-
-  for (int i = 0; i < sm_i->alloc_ready_max * IG_SIZE; i++) {
-    sm_i->alloc_ready_list[i] = ready_szone(sbi);
-  }
-
-}
-#endif
 /*
  * In dynamic striping policy, segment allocation is processed 
  * between head and tail of active zone list and does not modify
  * the position of head and tail of active zone.
  * Only monitor thread adjusts the position of head and tail of active zone.
  */
-#if DYNAMIC_STRIPE
 static inline unsigned int f2fs_usable_zone_segs_in_sec(
 		struct f2fs_sb_info *sbi, unsigned int segno);
 
@@ -3105,9 +2994,6 @@ static void new_curseg_striped(struct f2fs_sb_info *sbi,
     sum_blkaddr = get_sum_block_addr(sbi, segno); 
 
 		write_sum_page(sbi, curseg->sum_blk, sum_blkaddr);
-    //page = f2fs_grab_meta_page(sbi, sum_blkaddr);
-    //f2fs_sync_single_sum_page(page);
-    //f2fs_put_page(page, 0);
 #endif // SEP_SSA
 	}
 
@@ -3167,7 +3053,9 @@ static void new_curseg_striped(struct f2fs_sb_info *sbi,
   // A case need to allocate new section
   if (segno == NULL_SEGNO){
     if (curseg->reclaimable_start != curseg->reclaimable_end) {
+#if DEBUG
       printk("%s:%d move reclaim to active", __func__, __LINE__);
+#endif
       spin_lock(&curseg->reclaimable_lock); 
       if (curseg->reclaimable_start != curseg->reclaimable_end) {
         
@@ -3182,7 +3070,9 @@ static void new_curseg_striped(struct f2fs_sb_info *sbi,
     }
   // if inactive is not empty, change a zone into active
     else if (curseg->inactive_start != curseg->inactive_end) {
+#if DEBUG
       printk("%s:%d move inactive to active", __func__, __LINE__);
+#endif
       spin_lock(&curseg->inactive_lock); 
       if (curseg->inactive_start != curseg->inactive_end) {
         old_start = curseg->inactive_start++;
@@ -3195,21 +3085,25 @@ static void new_curseg_striped(struct f2fs_sb_info *sbi,
       segno = curseg->active_zones[curseg->cursor];
     } else { 
       // after initialization
+#if DEBUG
       printk("%s:%d allocate new section", __func__, __LINE__);
+#endif
       segno = 0;
       new_sec = true;
-#if ZF2FS_MONITOR & GRID_STRIPE
+#if ZF2FS_MONITOR
       sbi->f2fs_open_zones += SM_I(sbi)->grid_cnt;
 #else
       sbi->f2fs_open_zones += 1;
 #endif
-//      printk("f2fs_open zones %d", sbi->f2fs_open_zones);
     }
   }
 #if IGZO
   if (new_sec) {
   //find which IGC is not allocated
     int i;
+    spin_lock(&sm_i->ig_lock);
+
+    //get the first free IG
     for (i = 0; i < IG_NR; i++) {
       if (alloc_IG_list[i] != CURSEG_NOT_ALLOC)
         continue;
@@ -3226,25 +3120,29 @@ static void new_curseg_striped(struct f2fs_sb_info *sbi,
 
     // if all IGs are in used, select least used IG
     if (target_IG == -1) {
-      target_IG = 0;
-      for (i = 1; i < IG_NR; i++) {
-        if (sm_i->free_sz_cnt[target_IG] < sm_i->free_sz_cnt[i]) { 
-          target_IG = i;
-        }
+      target_IG = get_least_free_IG(sbi);
     }
 
-    }
     if (unlikely(!sm_i->free_sz_cnt[target_IG])) {
       f2fs_bug_on(sbi, 1);
     }
 
     //find section of not allocated 
-    get_new_segment_from_IG(sbi, &segno, new_sec, dir, target_IG);
+    get_new_segment_from_IG(sbi, &segno, new_sec, dir, &target_IG);
+    if (segno == NULL_SEGNO) {
+      spin_unlock(&sm_i->ig_lock);
+      spin_unlock(&curseg->active_lock);
+      return;
+    }
+#if DEBUG
     printk("(%s:%d) type %u target_IG(%d) secno(%u), IG(%d)",
       __func__, __LINE__, seg_type, target_IG, GET_SEC_FROM_SEG(sbi, segno),
       GET_IG_FROM_SEG(sbi, segno));
-    alloc_IG_list[target_IG] = seg_type;
+#endif
     sm_i->free_sz_cnt[target_IG]--;
+    spin_unlock(&sm_i->ig_lock);
+    if (alloc_IG_list[target_IG] == CURSEG_NOT_ALLOC)
+      alloc_IG_list[target_IG] = seg_type;
   } else {
     get_new_segment(sbi, &segno, new_sec, dir);
   }
@@ -3269,77 +3167,6 @@ static void new_curseg_striped(struct f2fs_sb_info *sbi,
   spin_unlock(&curseg->active_lock); 
 	curseg->alloc_type = LFS;
 }
-#else //DYNAMIC_STRIPE
-static void new_curseg_striped(struct f2fs_sb_info *sbi,
-			int type)
-{
-
-	struct curseg_info *curseg = CURSEG_I(sbi, type);
-	unsigned short seg_type = curseg->seg_type;
-	unsigned int segno = curseg->segno;
-	unsigned int old_segno;
-	int dir = ALLOC_LEFT;
-	int stripe_cnt = SM_I(sbi)->stripe_min_cnt;
-  bool new_sec = false;
-  unsigned int cursor;
-  block_t sum_blkaddr;
-  struct page *page;
-
-	if (curseg->inited){
-#if !SEP_SSA
-    write_sum_page(sbi, curseg->sum_blk, GET_SUM_BLOCK(sbi, segno));
-#else // SEP_SSA
-    sum_blkaddr = get_sum_block_addr(sbi, segno); 
-    printk("(%s:%d) segno(%u), sum_blk(%u)", __func__, __LINE__,
-      segno, sum_blkaddr);
-
-		write_sum_page(sbi, curseg->sum_blk, sum_blkaddr);
-#endif // SEP_SSA
-	}
-
-  stripe_cnt = SM_I(sbi)->stripe_cnt;
-	if (seg_type == CURSEG_WARM_DATA || seg_type == CURSEG_COLD_DATA) {
-		dir = ALLOC_RIGHT;
-  }
-	if (test_opt(sbi, NOHEAP))
-		dir = ALLOC_RIGHT;
-
-	//printk("(%s : %d) allocated %u curseg type)", __func__, __LINE__, seg_type);
-	
-	if (!stripe_cnt)
-		stripe_cnt = 1;
-	curseg->stripe_idx = (curseg->stripe_idx + 1) % stripe_cnt;
-	segno = curseg->allocated_segs[curseg->stripe_idx];
-	old_segno = segno;
-
-  if (segno == NULL_SEGNO){
-#if GRID_STRIPE
-    segno = 0;
-#endif
-    new_sec = true;
-  }
-	get_new_segment(sbi, &segno, new_sec, dir);
-
-	curseg->next_segno = segno;
-	reset_curseg(sbi, type, 1);
-
-	curseg->allocated_segs[curseg->stripe_idx] = segno;
-
-	// allocated new section
-	if (GET_SEC_FROM_SEG(sbi, old_segno) != GET_SEC_FROM_SEG(sbi, segno)){
-
-		get_sec_entry(sbi, segno)->inuse = seg_type + 1;
-		if (old_segno != NULL_SEGNO) {
-			get_sec_entry(sbi, old_segno)->inuse = 0;
-		}
-	}
-
-	curseg->alloc_type = LFS;
-	if (F2FS_OPTION(sbi).fs_mode == FS_MODE_FRAGMENT_BLK)
-		curseg->fragment_remained_chunk =
-				prandom_u32() % sbi->max_fragment_chunk + 1;
-}
-#endif //DYNAMIC_STRIPE
 #endif //STRIPE
 
 static int __next_free_blkoff(struct f2fs_sb_info *sbi,
@@ -4044,6 +3871,7 @@ static int __get_segment_type_6(struct f2fs_io_info *fio)
 		return CURSEG_COLD_NODE;
 	}
 }
+
 static int __get_segment_type(struct f2fs_io_info *fio)
 {
 	int type = 0;
@@ -4070,6 +3898,11 @@ static int __get_segment_type(struct f2fs_io_info *fio)
 		fio->temp = COLD;
 	return type;
 }
+
+inline int f2fs_get_segment_type(struct f2fs_io_info *fio) {
+	return __get_segment_type(fio);
+}
+
 #if ZF2FS_MONITOR
 extern block_t f2fs_monitor_pages[6];
 #endif
@@ -5012,7 +4845,6 @@ static void add_sits_in_set(struct f2fs_sb_info *sbi)
 }
 
 #if META_FOR_ZNS
-#if DELAYED_MERGE
 int __flush_sum_blks(struct f2fs_sb_info *sbi){
 	struct f2fs_sm_info *sm_i = SM_I(sbi);
 	struct address_space *mapping = META_MAPPING(sbi);
@@ -5022,13 +4854,7 @@ int __flush_sum_blks(struct f2fs_sb_info *sbi){
 	pgoff_t index, end;
 	struct blk_plug plug;
 	int nr_pages;
-/*
-	if(sm_i->logged_sum_blks == sm_i->sum_blks_in_log){
-		printk("(%s : %d) there is no sum blks to log",
-				__func__, __LINE__);
-//		return 0;
-	}
-*/
+
 	index = sm_i->ssa_blkaddr;
 	end = sm_i->sit_log_blkaddr - 1; //inclusive
 
@@ -5060,40 +4886,28 @@ continue_unlock:
 				goto continue_unlock;
 			}
 
-#if !NAIVE_MFZ
 			if(write_sum_log_page(sbi, GET_SEGNO_FROM_SUM_ADDR(sbi, page->index),
 						page_address(page)))
 			{
 				unlock_page(page);
 				printk("(%s : %d) error while writing sum log page", __func__, __LINE__);
-				//f2fs_bug_on(sbi, 1);
 				ret = -EIO;
 				break;
 			}
 			nwritten++;
 			if (!has_curlog_space(sbi, 1, SSA_LOG)) {
 				//prepare merge
-				//printk("(%s:%d) set merge flag", __func__, __LINE__);
 				if (is_set_ckpt_flags(sbi, CP_SSA_MERGE_FLAG) ||
 						is_set_ckpt_flags(sbi, CP_SSA_MERGE_PREPARE_FLAG)){
 					f2fs_bug_on(sbi, 1);
 					printk("(%s:%d) SSA_MERGE_FLAG is already set",
 							__func__, __LINE__);
 				}
-/*
-        if (0) {
-          blkdev_zone_mgmt(FDEV(0).bdev, REQ_OP_ZONE_FINISH, 
-              SECTOR_FROM_BLOCK(sm_i->sum_log_blkaddr + sm_i->cur_sum_log * sbi->blocks_per_blkz), 
-              SECTOR_FROM_BLOCK(sbi->blocks_per_blkz), GFP_NOFS);
-        }
-*/
 				set_ckpt_flags(sbi, CP_SSA_MERGE_PREPARE_FLAG);
-//				switch log tree;
+//			switch log tree;
 				sm_i->cur_sum_log ^= 0x1;
 				sm_i->sum_blks_in_log = 0;
-//				printk("(%s:%d) set merge flag done", __func__, __LINE__);
 			}
-#endif
 
 			f2fs_clear_page_cache_dirty_tag(page);
 			dec_page_count(sbi, F2FS_DIRTY_META);
@@ -5107,13 +4921,11 @@ continue_unlock:
 
 	return ret;
 }
+
 int flush_sum_blks(struct f2fs_sb_info *sbi, struct cp_control *cpc){
 	bool fg_merge = false;
 	int err;
 
-#if NAIVE_MFZ
-  fg_merge = true;
-#else
 	if (cpc->reason & CP_UMOUNT) {
 		fg_merge = true;
 	} else if (!has_curlog_space(sbi, 1, SSA_LOG)) {
@@ -5123,18 +4935,14 @@ int flush_sum_blks(struct f2fs_sb_info *sbi, struct cp_control *cpc){
 		SM_I(sbi)->cur_sum_log ^= 0x1;
 		SM_I(sbi)->sum_blks_in_log = 0;
 	}
-#endif // NAIVE_MFZ
   if((err = __flush_sum_blks(sbi))){
     printk("(%s : %d) error during flush_sum_blks",
         __func__, __LINE__);
     return err;
-  } else {
-    //printk("(%s : %d) flush_sum_blks",
-    //    __func__, __LINE__);
   }
-	/* set sum_merge flag */
+
+  /* set sum_merge flag */
 	if (fg_merge) {
-		//printk("(%s : %d) fg_merge", __func__, __LINE__);
 		err = merge_ssa(sbi, 1);
 		if (err == -1) {
 			err = 0;
@@ -5146,122 +4954,22 @@ int flush_sum_blks(struct f2fs_sb_info *sbi, struct cp_control *cpc){
 
 	return err;
 }
-#else //DELAYED_MERGE
-int __flush_sum_blks(struct f2fs_sb_info *sbi, bool merge){
-	struct f2fs_sm_info *sm_i = SM_I(sbi);
-	struct address_space *mapping = META_MAPPING(sbi);
-	struct pagevec pvec;
-	int ret = 0;
-	pgoff_t index, end;
-	struct blk_plug plug;
-	int nr_pages;
-
-	if(sm_i->logged_sum_blks == sm_i->sum_blks_in_log){
-		//printk("(%s : %d) there is no sum blks to log",
-		//		__func__, __LINE__);
-		return 0;
-	}
-	
-	index = sm_i->ssa_blkaddr;
-	end = sm_i->sit_log_blkaddr-1; //inclusive
-
-	pagevec_init(&pvec);
-	while((nr_pages = pagevec_lookup_range_tag(&pvec, 
-					mapping, &index, end, PAGECACHE_TAG_DIRTY))){
-		
-		int i;
-		blk_start_plug(&plug);
-		for(i=0;i<nr_pages;i++){
-			struct page *page = pvec.pages[i];
-
-			lock_page(page);
-			if(unlikely(page->mapping != mapping)){
-continue_unlock:
-				unlock_page(page);
-				continue;
-			}
-			if(!PageDirty(page)) {
-				goto continue_unlock;
-			}
-
-			f2fs_wait_on_page_writeback(page, META, true, true);
-
-			if(!clear_page_dirty_for_io(page)){
-				printk("(%s : %d) clear page dirty error", __func__, __LINE__);
-				f2fs_bug_on(sbi, 1);
-				ret = -EIO;
-				goto continue_unlock;
-			}
-			
-			if(!merge) {
-				if(write_sum_log_page(sbi, GET_SEGNO_FROM_SUM_ADDR(sbi, page->index),
-							page_address(page))) 
-				{
-					unlock_page(page);
-					printk("(%s : %d) error while writing sum log page", __func__, __LINE__);
-					//f2fs_bug_on(sbi, 1);
-					ret = -EIO;
-					break;
-				}
-			}
-			f2fs_clear_page_cache_dirty_tag(page);
-			dec_page_count(sbi, F2FS_DIRTY_META);
-			unlock_page(page);
-
-		}
-		blk_finish_plug(&plug);
-	}
-	if(!merge){
-		f2fs_submit_merged_write(sbi, META);
-	}
-
-	return ret;
-}
-int flush_sum_blks(struct f2fs_sb_info *sbi, struct cp_control *cpc){
-	//check sum blks log is full
-	bool merge = false;
-	int err;
-	int dirty_sum_pages = get_dirty_sum_pages(sbi);
-	if((cpc->reason & CP_UMOUNT) || !has_curlog_space(sbi, dirty_sum_pages, SSA_LOG))
-		merge = true;
-
-	if((err = __flush_sum_blks(sbi, merge))){
-		printk("(%s : %d) error during flush_sum_blks",
-				__func__, __LINE__);
-		return err;
-	}
-	if(merge) {
-		printk("(%s : %d) merge ssa log",
-				__func__, __LINE__);
-		err = merge_ssa(sbi);
-	} else {
-		printk("(%s : %d) write ssa without merge",
-				__func__, __LINE__);
-	}
-	f2fs_submit_merged_write(sbi, META);
-
-	return err;
-} 
-#endif /* DELAYED_MERGE */
 static void clean_ssa_set(struct f2fs_sb_info *sbi,
 		struct ssa_set *set, int foreground){
 
 	struct radix_tree_root *root;
-#if DELAYED_MERGE
   int merge_idx;
   if (foreground)
 	  merge_idx = SM_I(sbi)->cur_log_tree_idx;
   else
 	  merge_idx = SM_I(sbi)->cur_log_tree_idx ^ 0x1;
 	root = &SM_I(sbi)->ssa_log_root[merge_idx];
-#else
-	root = &SM_I(sbi)->ssa_log_root;
-#endif
 	if(!radix_tree_delete_item(root, set->segno, set))
 		f2fs_bug_on(sbi, 1);
 
 	kmem_cache_free(ssa_set_slab, set);
 }
+
 /* merge(flush) one sum block */
 static void merge_ssa_set(struct f2fs_sb_info *sbi, struct ssa_set *set, int foreground){
 
@@ -5290,8 +4998,6 @@ static void merge_ssa_set(struct f2fs_sb_info *sbi, struct ssa_set *set, int for
 	}
 	f2fs_put_page(page, 0);
 
-//	printk("(%s : %d) merge ssa set of segno(%u) done",
-//			__func__, __LINE__, set->segno);
 }
 int merge_ssa(struct f2fs_sb_info *sbi, int foreground){
 	struct f2fs_sm_info *sm_i = SM_I(sbi);
@@ -5304,10 +5010,8 @@ int merge_ssa(struct f2fs_sb_info *sbi, int foreground){
 	unsigned int cur_zone_offset = 0;
 	unsigned boff_in_zone = 0;
 	int wp = 0;
-//	int last_updated_zone = -1;
 	unsigned int zone_cap = meta_blks_zone_cap(sbi);
 	struct radix_tree_root *root;
-#if DELAYED_MERGE
 	int merge_tree_idx;
   if (foreground) {
     merge_tree_idx = SM_I(sbi)->cur_log_tree_idx;
@@ -5318,21 +5022,12 @@ int merge_ssa(struct f2fs_sb_info *sbi, int foreground){
 
 	//printk("(%s : %d) merge_tree_idx %d", __func__, __LINE__, merge_tree_idx);
 	root = &SM_I(sbi)->ssa_log_root[merge_tree_idx];
-#else
-	root = &SM_I(sbi)->ssa_log_root;
-#endif
 	
 	if(radix_tree_empty(root)){
 		printk("(%s : %d) there is no sum log to write", __func__, __LINE__);
-/*
-#if !NAIVE_MFZ
-		return -1;
-#endif
-*/
     if (foreground)
       return 0;
 	}
-	//printk("(%s : %d) merge ssa", __func__, __LINE__);
 	
 	while ((found = radix_tree_gang_lookup(root, 
 					(void **)setvec, set_idx, SETVEC_SIZE))){
@@ -5347,7 +5042,6 @@ int merge_ssa(struct f2fs_sb_info *sbi, int foreground){
 	reset_meta_zone_towrite(sbi, cur_zone_offset, SSA);
 	
 	list_for_each_entry_safe(set, next, &sets, set_list){
-		//printk("(%s : %d) merge ssa segno(%u)", __func__, __LINE__, set->segno);
 		if(cur_zone_offset != meta_boff_to_zoff(sbi, 
 					set->segno)){
 			if(wp < zone_cap) {
@@ -5356,7 +5050,6 @@ int merge_ssa(struct f2fs_sb_info *sbi, int foreground){
 				f2fs_bug_on(sbi, wp < 0);
 			}
 			f2fs_change_bit(cur_zone_offset, sm_i->ssa_bitmap);
-			//printk("(%s : %d) f2fs change bit", __func__, __LINE__);
 			cur_zone_offset = meta_boff_to_zoff(sbi, set->segno);
 			wp = 0;
 			reset_meta_zone_towrite(sbi, cur_zone_offset, SSA);
@@ -5364,7 +5057,6 @@ int merge_ssa(struct f2fs_sb_info *sbi, int foreground){
 		boff_in_zone = meta_boff_in_zone(sbi, set->segno);
 
 		if(wp < boff_in_zone){
-		//	printk("(%s : %d) ", __func__, __LINE__);
 			wp = advance_meta_zone_wp(sbi, cur_zone_offset, wp,
 					(boff_in_zone - wp), SSA);
 			f2fs_bug_on(sbi, wp < 0);
@@ -5374,31 +5066,16 @@ int merge_ssa(struct f2fs_sb_info *sbi, int foreground){
 
 	}
 	if(wp < zone_cap){
-//		printk("(%s : %d) ", __func__, __LINE__);
 		wp = advance_meta_zone_wp(sbi, cur_zone_offset, wp,
 				(zone_cap - wp), SSA);
-		//f2fs_bug_on(sbi, wp < 0);
 	}
 	f2fs_change_bit(cur_zone_offset, sm_i->ssa_bitmap);
 
-#if !DELAYED_MERGE
-	reset_meta_zone_towrite(sbi, 0, SSA_LOG);
-	SM_I(sbi)->sum_blks_in_log = 0;
-#endif
 	if (!radix_tree_empty(root)) {
 		printk("(%s : %d) merge tree is no empty",
 				__func__, __LINE__);
 		return -1;
 	}
-#if !DELAYED_MERGE
-	if(sm_i->logged_sum_blks){
-		printk("(%s : %d) logged_sum_blks is not 0(%u)",
-				__func__, __LINE__, sm_i->logged_sum_blks);
-		return -1;
-		f2fs_bug_on(sbi, sm_i->logged_sum_blks);
-	}
-#endif
-	//printk("(%s : %d) merge ssa done", __func__, __LINE__);
 	return 0;
 }
 static bool __mark_sit_log_dirty(struct f2fs_sb_info *sbi, unsigned int segno){
@@ -5414,12 +5091,8 @@ static void __insert_sit_log_set(struct f2fs_sb_info *sbi, unsigned int segno){
 	unsigned int start_segno = START_SEGNO(segno);
 	struct sit_entry_set *head;
 	struct radix_tree_root *root;
-#if DELAYED_MERGE
 	//insert set in log tree
 	root = &SM_I(sbi)->sit_log_root[SM_I(sbi)->sit_ltree_idx];
-#else
-	root = &SM_I(sbi)->sit_log_root;
-#endif
 	//insert to log set
 	head = radix_tree_lookup(root, start_segno);
 	if(!head){
@@ -5435,39 +5108,35 @@ static void __insert_sit_log_set(struct f2fs_sb_info *sbi, unsigned int segno){
 	if(!__mark_sit_log_dirty(sbi, segno)){
 		head->entry_cnt++;
 	}
-	
-	//printk("(%s : %d) insert sit log of segno(%u) done",
-	//		__func__, __LINE__, segno);
 }
+
 static void insert_sit_log_set(struct f2fs_sb_info *sbi, unsigned int segno){
 	// insert sit entry set to sit log tree
 	__insert_sit_log_set(sbi, segno);
 }
+
 static void clean_sit_log_set(struct f2fs_sb_info *sbi,
 		struct sit_entry_set *set, int foreground){
-#if DELAYED_MERGE
 	int idx;
-#endif
-	if(set->entry_cnt){
+  static bool printed = false;
+
+	if(set->entry_cnt && !printed){
 		printk("(%s : %d)error : set has some entries",
 				__func__, __LINE__); 
-		printk("(%s : %d)start segno(%d) has %d entries",
+		printk("(%s : %d)start segno(%u) has %u entries",
 				__func__, __LINE__, set->start_segno, 
 				set->entry_cnt);
-		//f2fs_bug_on(sbi, 1);
+    printed = true;
 	}
-#if DELAYED_MERGE
+
 	if (foreground)
 		idx = SM_I(sbi)->sit_ltree_idx;
 	else
 		idx = SM_I(sbi)->sit_ltree_idx ^ 0x1;
 	radix_tree_delete(&SM_I(sbi)->sit_log_root[idx], set->start_segno);
-#else
-	radix_tree_delete(&SM_I(sbi)->sit_log_root, set->start_segno);
-#endif
 	kmem_cache_free(sit_entry_set_slab, set);
 }
-#if DELAYED_MERGE
+
 static void __flush_sit_log(struct f2fs_sb_info *sbi, struct cp_control *cpc){
 	struct sit_info *sit_i = SIT_I(sbi);
 	unsigned long *bitmap = sit_i->dirty_sentries_bitmap;
@@ -5483,9 +5152,6 @@ static void __flush_sit_log(struct f2fs_sb_info *sbi, struct cp_control *cpc){
 
 	if (cpc->reason & CP_UMOUNT)
 		fg_merge = true;
-#if NAIVE_MFZ
-  fg_merge = true;
-#endif
 
 	if(!fg_merge){
 		page = get_next_log_page(sbi, SIT_LOG);
@@ -5512,7 +5178,6 @@ static void __flush_sit_log(struct f2fs_sb_info *sbi, struct cp_control *cpc){
 		/* flush dirty sit entries in region of current sit set */
 		for_each_set_bit_from(segno, bitmap, end) {
 
-//			printk("(%s : %d) segno: %u", __func__, __LINE__, segno);
 			/* add discard candidates */
 			//TODO : discard
 			if (!(cpc->reason & CP_DISCARD)) {
@@ -5525,8 +5190,6 @@ static void __flush_sit_log(struct f2fs_sb_info *sbi, struct cp_control *cpc){
 				if(offset >= SIT_LOG_ENTRIES){
 					raw_sit_log->n_sits = cpu_to_le16(offset);
 					raw_sit_log->cp_ver = cpu_to_le64(cur_cp_version(F2FS_CKPT(sbi)));
-					//printk("(%s : %d) n_sits cpu : %x, le : %x", 
-					//		__func__, __LINE__, offset, raw_sit_log->n_sits);
 
 					//sync current log page
 					if (!clear_page_dirty_for_io(page)){
@@ -5547,7 +5210,6 @@ static void __flush_sit_log(struct f2fs_sb_info *sbi, struct cp_control *cpc){
 							printk("(%s:%d) SIT_MERGE_FLAG is already set",
 									__func__, __LINE__);
 						}
-						//set_ckpt_flags(sbi, CP_NAT_MERGE_FLAG);
 						// switch log tree;
 						cpc->merge = cpc->merge | 0x1;
 						SM_I(sbi)->cur_sit_log ^= 0x1;
@@ -5573,7 +5235,6 @@ static void __flush_sit_log(struct f2fs_sb_info *sbi, struct cp_control *cpc){
 					= cpu_to_le32(segno);
 				seg_info_to_raw_sit(se, 
 						&sit_in_log(raw_sit_log, offset));
-				// check block count -> why?
 				check_block_count(sbi, segno, 
 						&sit_in_log(raw_sit_log, offset));
 				offset++;
@@ -5613,7 +5274,6 @@ static void __flush_sit_log(struct f2fs_sb_info *sbi, struct cp_control *cpc){
 				printk("(%s:%d) SIT_MERGE_FLAG is already set",
 						__func__, __LINE__);
 			}
-			//set_ckpt_flags(sbi, CP_NAT_MERGE_FLAG);
 			// switch log tree;
 			cpc->merge = cpc->merge | 0x1;
 			SM_I(sbi)->cur_sit_log ^= 0x1;
@@ -5633,142 +5293,7 @@ out:
 		cpc->trim_start = trim_start;
 	}
 }
-#else //DELAYED_MERGE
-static void __flush_sit_log(struct f2fs_sb_info *sbi, struct cp_control *cpc){
-	struct sit_info *sit_i = SIT_I(sbi);
-	unsigned long *bitmap = sit_i->dirty_sentries_bitmap;
-	//struct curseg_info *curseg = CURSEG_I(sbi, CURSEG_COLD_DATA);
-	struct sit_entry_set *ses, *tmp;
-	struct list_head *head = &SM_I(sbi)->sit_entry_set;
-	struct seg_entry *se;
 
-	struct page *page = NULL;
-	struct f2fs_sit_log_block *raw_sit_log = NULL;
-	unsigned int offset = 0;
-	bool merge = false;
-
-	if((cpc->reason & CP_UMOUNT) || 
-			!has_curlog_space(sbi, sit_i->dirty_sentries, SIT_LOG))
-		merge = true;
-
-	if(!merge){
-		page = get_next_log_page(sbi, SIT_LOG);
-		if(page) {
-			raw_sit_log = page_address(page);
-		} else {
-			printk("(%s : %d) error : failed to get next log page", __func__, __LINE__);
-			f2fs_put_page(page, 1);
-			goto out;
-		}
-	}
-
-	
-	/*
-	 * if there are no enough space in log area to store dirty sit
-	 * entries, merge dirty sit entries, log area and sit pages.
-	 */
-	list_for_each_entry_safe(ses, tmp, head, set_list) {
-		unsigned int start_segno = ses->start_segno;
-		unsigned int end = min(start_segno + SIT_ENTRY_PER_BLOCK,
-						(unsigned long)MAIN_SEGS(sbi));
-		unsigned int segno = start_segno;
-
-
-		/* flush dirty sit entries in region of current sit set */
-		for_each_set_bit_from(segno, bitmap, end) {
-
-
-//			printk("(%s : %d) segno: %u", __func__, __LINE__, segno);
-			/* add discard candidates */
-			//TODO : discard
-			if (!(cpc->reason & CP_DISCARD)) {
-				cpc->trim_start = segno;
-				add_discard_addrs(sbi, cpc, false);
-			}
-
-			if (!merge) {
-				se = get_seg_entry(sbi, segno);
-				if(offset >= SIT_LOG_ENTRIES){
-					raw_sit_log->n_sits = cpu_to_le16(offset);
-					//printk("(%s : %d) n_sits cpu : %x, le : %x", 
-					//		__func__, __LINE__, offset, raw_sit_log->n_sits);
-
-					//sync current log page
-					
-					if (!clear_page_dirty_for_io(page)){
-						printk("(%s : %d) error during clear page dirty flag",
-							__func__, __LINE__);
-					}
-
-					if (f2fs_sync_single_meta_page(page)) {
-						unlock_page(page);
-						printk("(%s : %d) error during sync log meta page",
-							__func__, __LINE__);
-					} 
-
-					f2fs_put_page(page, 0);
-					page = get_next_log_page(sbi, SIT_LOG);
-					if(page) {
-						raw_sit_log = page_address(page);
-					} else {
-						printk("(%s : %d) error : failed to get next log page",
-								__func__, __LINE__);
-						f2fs_put_page(page, 1);
-						goto out;
-					}
-					offset = 0;
-				}
-				// write on log area
-				// get current log area cursor
-				segno_in_log(raw_sit_log, offset)
-					= cpu_to_le32(segno);
-				seg_info_to_raw_sit(se, 
-						&sit_in_log(raw_sit_log, offset));
-				// check block count -> why?
-				check_block_count(sbi, segno, 
-						&sit_in_log(raw_sit_log, offset));
-				offset++;
-			}
-
-			insert_sit_log_set(sbi, segno);
-
-			__clear_bit(segno, bitmap);
-			sit_i->dirty_sentries--;
-			ses->entry_cnt--;
-
-		}
-
-		f2fs_bug_on(sbi, ses->entry_cnt);
-		release_sit_entry_set(ses);
-	}
-
-	if(!merge){
-		raw_sit_log->n_sits = cpu_to_le16(offset);
-
-		if (!clear_page_dirty_for_io(page)){
-			printk("(%s : %d) error during clear page dirty flag",
-					__func__, __LINE__);
-		}
-		if (f2fs_sync_single_meta_page(page)) {
-			unlock_page(page);
-			printk("(%s : %d) error during sync log meta page",
-					__func__, __LINE__);
-		}
-		f2fs_put_page(page, 0);
-	}
-	f2fs_bug_on(sbi, !list_empty(head));
-	f2fs_bug_on(sbi, sit_i->dirty_sentries);
-out:
-	if (cpc->reason & CP_DISCARD) {
-		__u64 trim_start = cpc->trim_start;
-
-		for (; cpc->trim_start <= cpc->trim_end; cpc->trim_start++)
-			add_discard_addrs(sbi, cpc, false);
-
-		cpc->trim_start = trim_start;
-	}
-}
-#endif /* DELAYED_MERGE */
 static int merge_sit_set(struct f2fs_sb_info *sbi, struct sit_entry_set *set, int foreground){
 
 	struct page *page = NULL;
@@ -5781,18 +5306,19 @@ static int merge_sit_set(struct f2fs_sb_info *sbi, struct sit_entry_set *set, in
 			(unsigned long)MAIN_SEGS(sbi));
 	unsigned int segno = start_segno;
 
-#if DELAYED_MERGE
 	unsigned long *bitmap;
+  static bool printed = false;
+
   if (foreground)
     bitmap = sit_i->sit_log_bitmap; //dirty sentries in log
   else
     bitmap = sit_i->sit_merge_bitmap; //dirty sentries in log
-#else
-	unsigned long *bitmap = sit_i->sit_log_bitmap; //dirty sentries in log
-#endif
 
 	page = get_next_sit_page(sbi, start_segno);
 	raw_sit = page_address(page);
+
+  if (foreground)
+    down_read(&sit_i->sentry_lock);
 
 	for_each_set_bit_from(segno, bitmap, end){
 		int sit_offset;
@@ -5806,9 +5332,14 @@ static int merge_sit_set(struct f2fs_sb_info *sbi, struct sit_entry_set *set, in
 		//sit_i->logged_sentries--;
 		set->entry_cnt--;
 	}
-  if (set->entry_cnt) {	
+
+  if (foreground)
+    up_read(&sit_i->sentry_lock);
+
+  if (set->entry_cnt && !printed) {
     printk("(%s : %d) segno(%u), cnt(%u)",
 	    __func__, __LINE__, start_segno, set->entry_cnt);
+    printed = true;
   }
 
 	if(!clear_page_dirty_for_io(page)){
@@ -5824,8 +5355,6 @@ static int merge_sit_set(struct f2fs_sb_info *sbi, struct sit_entry_set *set, in
 	}
 	f2fs_put_page(page, 0);
 
-//	printk("(%s : %d) merge sit set of start segno(%u) on page(idx:%lu) done",
-//			__func__, __LINE__, start_segno, page->index);
 	return 0;
 }
 
@@ -5841,8 +5370,6 @@ int merge_sit(struct f2fs_sb_info *sbi, int foreground){
 	int wp = 0;	// wp in unit of blk offset in zone
 	unsigned int zone_cap = meta_blks_zone_cap(sbi);
 	unsigned int set_idx = 0;
-	//printk("(%s : %d) adjust setvec", __func__, __LINE__);
-#if DELAYED_MERGE
 	int merge_tree_idx;
 	if (foreground)
 		merge_tree_idx = sm_i->sit_ltree_idx;
@@ -5851,10 +5378,6 @@ int merge_sit(struct f2fs_sb_info *sbi, int foreground){
 
 	while ((found = radix_tree_gang_lookup(&sm_i->sit_log_root[merge_tree_idx],
 					(void **)setvec, set_idx, SETVEC_SIZE))){
-#else
-	while ((found = radix_tree_gang_lookup(&sm_i->sit_log_root, 
-					(void **)setvec, set_idx, SETVEC_SIZE))){
-#endif
 		unsigned int idx;
 		set_idx = setvec[found - 1]->start_segno + 1;
 		for(idx=0;idx<found;idx++){
@@ -5900,16 +5423,10 @@ int merge_sit(struct f2fs_sb_info *sbi, int foreground){
 				(zone_cap - wp), SIT_LOG);
 		f2fs_bug_on(sbi, wp < 0);
 	}
-#if DELAYED_MERGE
 	f2fs_bug_on(sbi, !radix_tree_empty(&sm_i->sit_log_root[sm_i->sit_ltree_idx ^ 0x1]));
-#else
-	reset_meta_zone_towrite(sbi, 0, SIT_LOG);
-	SM_I(sbi)->sit_blks_in_log = 0;
-	f2fs_bug_on(sbi, !radix_tree_empty(&sm_i->sit_log_root));
-#endif
-//	f2fs_bug_on(sbi, SIT_I(sbi)->logged_sentries);
 	return 0;
 }
+
 /*
  * CP calls this function, which flushes SIT entries including sit_journal,
  * and moves prefree segs to free segs.
@@ -5926,7 +5443,6 @@ void f2fs_flush_sit_entries(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 	 * if current log area is full, 
 	 * merge log with SIT and use alternative log
 	 */
-#if DELAYED_MERGE
 	if (cpc->reason & CP_UMOUNT) {
 		fg_merge = true;
 		merge = true;
@@ -5934,15 +5450,6 @@ void f2fs_flush_sit_entries(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 	else if (!has_curlog_space(sbi, 1, SIT_LOG)) {
 		merge = true;
 	}
-#else
-	if ((cpc->reason & CP_UMOUNT) || !has_curlog_space(sbi, 1, SIT_LOG)) {
-		merge = true;
-	}
-#endif //DELAYED_MERGE
-#if NAIVE_MFZ
-  fg_merge = true;
-  merge = true;
-#endif
 	down_write(&sit_i->sentry_lock);
 
 	//printk("(%s : %d) flush sit log", __func__, __LINE__);
@@ -5959,13 +5466,23 @@ void f2fs_flush_sit_entries(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 	up_write(&sit_i->sentry_lock);
 
 	set_prefree_as_free_segments(sbi);
-#if DELAYED_MERGE
-	if (fg_merge)
-		merge_sit(sbi, fg_merge);
-#else
-	if (merge)
-		merge_sit(sbi, 1);
-#endif
+	if (fg_merge) {
+		/*
+		 * In case of umount, we should merge the other log tree as well,
+		 * which can be remained by pending merge request.
+		 * Let's merge the older one first.
+		 */
+		if (is_set_ckpt_flags(sbi, CP_SIT_MERGE_FLAG)) {
+			if (unlikely(radix_tree_empty(&SM_I(sbi)->sit_log_root[SM_I(sbi)->sit_ltree_idx ^ 0x1])))
+				f2fs_warn(sbi, "CP_SIT_MERGE_FLAG is set but sit_log_root is empty");
+			merge_sit(sbi, false);
+			clear_ckpt_flags(sbi, CP_SIT_MERGE_FLAG);
+		} else {
+			if (unlikely(!radix_tree_empty(&SM_I(sbi)->sit_log_root[SM_I(sbi)->sit_ltree_idx ^ 0x1])))
+				f2fs_warn(sbi, "sit_log_root is not empty but CP_SIT_MERGE_FLAG is not set");
+		}
+		merge_sit(sbi, true);
+	}
 	f2fs_submit_merged_write(sbi, META);
 }
 #else //META_FOR_ZNS
@@ -6146,12 +5663,10 @@ static int build_sit_info(struct f2fs_sb_info *sbi)
 								GFP_KERNEL);
 	if (!sit_i->sit_log_bitmap)
 		return -ENOMEM;
-#if DELAYED_MERGE
 	sit_i->sit_merge_bitmap = f2fs_kvzalloc(sbi, main_bitmap_size,
 								GFP_KERNEL);
 	if (!sit_i->sit_merge_bitmap)
 		return -ENOMEM;
-#endif
 #endif
 #ifdef CONFIG_F2FS_CHECK_FS
 	bitmap_size = MAIN_SEGS(sbi) * SIT_VBLOCK_MAP_SIZE * (3 + discard_map);
@@ -6308,14 +5823,15 @@ static int build_curseg(struct f2fs_sb_info *sbi)
 	
 #if STRIPE
 	for(i = 0;i < NR_PERSISTENT_LOG; i++) {
-    array[i].allocated_segs = f2fs_kzalloc(sbi, 
-          SM_I(sbi)->stripe_max_cnt * sizeof(unsigned int), GFP_KERNEL);
-		array[i].allocated_segs[0] = array[i].segno;
 		get_sec_entry(sbi, array[i].segno)->inuse = i+1;
-    for(c = 1; c < SM_I(sbi)->stripe_max_cnt; c++) {
-      array[i].allocated_segs[c] = NULL_SEGNO;
-    }
+#if ZF2FS_MONITOR
     array[i].wanted_size = 1;
+#else
+    array[i].wanted_size = 4;
+    printk(KERN_INFO "Active zone scaling is off, active zone is set to %d",
+      array[i].wanted_size * IG_SIZE);
+#endif
+
 
     for(c = 0; c < 128; c++) {
       array[i].active_zones[c] = NULL_SEGNO;
@@ -6652,11 +6168,7 @@ static int check_zone_write_pointer(struct f2fs_sb_info *sbi,
 	 * Get last valid block of the zone.
 	 */
 	last_valid_block = zone_block - 1;
-#if GRID_STRIPE
   s = (sbi->blocks_per_blkz / sbi->blocks_per_seg) - 1;
-#else
-  s = sbi->segs_per_sec - 1;
-#endif
 	for (; s >= 0; s--) {
 		segno = zone_segno + s;
 		se = get_seg_entry(sbi, segno);
@@ -7092,6 +6604,12 @@ int f2fs_build_segment_manager(struct f2fs_sb_info *sbi)
 	sm_info->ssa_blkaddr = le32_to_cpu(raw_super->ssa_blkaddr);
 #if META_FOR_ZNS
 	sm_info->sit_log_blkaddr = le32_to_cpu(raw_super->sit_log_blkaddr);
+
+#if IGZO
+	sm_info->min_free_secs_per_ig_soft = DEFAULT_MIN_FREE_SECS_PER_IG_SOFT;
+	sm_info->min_free_secs_per_ig_hard = DEFAULT_MIN_FREE_SECS_PER_IG_HARD;
+#endif
+
 	sm_info->sum_log_blkaddr = le32_to_cpu(raw_super->sum_log_blkaddr);
 	sm_info->logged_sum_blks = 0;
 	sm_info->sum_log_tree_entries = 0;
@@ -7102,31 +6620,19 @@ int f2fs_build_segment_manager(struct f2fs_sb_info *sbi)
 
 	sm_info->ssa_bitmap = kmemdup(src_bitmap, ssa_bitmap_size, GFP_KERNEL);
 	
-	// sm_info->ssa_bitmap = f2fs_kvzalloc(sbi, ssa_bitmap_size, GFP_KERNEL);
 	if(!sm_info->ssa_bitmap)
 		return -ENOMEM;
-#if DELAYED_MERGE
 	INIT_RADIX_TREE(&sm_info->sit_log_root[0], GFP_NOIO);
 	INIT_RADIX_TREE(&sm_info->sit_log_root[1], GFP_NOIO);
 	
 	INIT_RADIX_TREE(&sm_info->ssa_log_root[0], GFP_NOIO);
 	INIT_RADIX_TREE(&sm_info->ssa_log_root[1], GFP_NOIO);
-#else
-	INIT_RADIX_TREE(&sm_info->sit_log_root, GFP_NOIO);
-	INIT_RADIX_TREE(&sm_info->ssa_log_root, GFP_NOIO);
-#endif //DELAYED_MERGE
 
-#if DELAYED_MERGE
 	init_rwsem(&sm_info->ssa_ltree_slock);
-#endif
 #endif //META_FOR_ZNS
 
 #if STRIPE
-	//for now, statically define
-	sm_info->stripe_cnt = STRIPE_CNT;
-  sm_info->stripe_max_cnt = STRIPE_MAX_CNT;
-  sm_info->stripe_min_cnt = STRIPE_MIN_CNT;
-#if GRID_STRIPE & IGZO
+#if IGZO
   sm_info->grid_cnt = IG_SIZE;
 #else
   sm_info->grid_cnt = 1;
@@ -7139,6 +6645,7 @@ int f2fs_build_segment_manager(struct f2fs_sb_info *sbi)
       sm_info->free_sz_cnt[i] += 1; 
     }
   }
+  spin_lock_init(&sm_info->ig_lock);
 #endif //STRIPE
 #if SEP_SSA
   sm_info->usable_segs_in_sec = f2fs_usable_zone_segs_in_sec(sbi, 0);
@@ -7298,9 +6805,7 @@ static void destroy_sit_info(struct f2fs_sb_info *sbi)
 	kvfree(sit_i->dirty_sentries_bitmap);
 #if META_FOR_ZNS
 	kvfree(sit_i->sit_log_bitmap);
-#if DELAYED_MERGE
 	kvfree(sit_i->sit_merge_bitmap);
-#endif
 #endif //META_FOR_ZNS
 	SM_I(sbi)->sit_info = NULL;
 	kvfree(sit_i->sit_bitmap);
@@ -7314,10 +6819,33 @@ static void destroy_sit_info(struct f2fs_sb_info *sbi)
 void f2fs_destroy_segment_manager(struct f2fs_sb_info *sbi)
 {
 	struct f2fs_sm_info *sm_info = SM_I(sbi);
+	int i;
 
 	if (!sm_info)
 		return;
 	f2fs_destroy_flush_cmd_control(sbi, true);
+#if META_FOR_ZNS
+	/* destroy sit log set cache */
+	for (i = 0; i < 2; i++) {
+		struct sit_entry_set *setvec[SETVEC_SIZE];
+		unsigned int found;
+		nid_t set_idx = 0;
+
+		while ((found = radix_tree_gang_lookup(
+				&sm_info->sit_log_root[i],
+				(void **)setvec, set_idx, SETVEC_SIZE))) {
+			unsigned idx;
+
+			set_idx = setvec[found - 1]->start_segno + 1;
+			for (idx = 0; idx < found; idx++) {
+				radix_tree_delete(&sm_info->sit_log_root[i],
+							setvec[idx]->start_segno);
+				kmem_cache_free(sit_entry_set_slab,
+							setvec[idx]);
+			}
+		}
+	}
+#endif
 	destroy_discard_cmd_control(sbi);
 	destroy_dirty_segmap(sbi);
 	destroy_curseg(sbi);

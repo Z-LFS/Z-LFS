@@ -30,8 +30,8 @@
 
 #include "zoned.h"
 #include <linux/kernel.h> // for dump_stack
-
-
+#include <linux/writeback.h>
+#include "calclock.h"
 #if META_FOR_ZNS
 enum meta_type{
 	SIT_LOG,
@@ -253,9 +253,7 @@ struct cp_control {
 	__u64 trim_start;
 	__u64 trim_end;
 	__u64 trim_minlen;
-#if DELAYED_MERGE
 	unsigned int merge;
-#endif
 };
 
 /*
@@ -438,11 +436,7 @@ struct fsync_inode_entry {
 
 #if META_FOR_ZNS
 // log size -> need to reflect zone cap
-#if GRID_STRIPE
 #define log_size(sbi)				(sbi->blocks_per_blkz)
-#else
-#define log_size(sbi)				(sbi->segs_per_sec * sbi->blocks_per_seg)
-#endif
 #define nid_to_zone(nid) 			(nid)
 
 #define sit_in_log(lblock, i)		((lblock)->entries[i].se)
@@ -941,13 +935,9 @@ struct f2fs_nm_info {
 	block_t nat_log_blkaddr;
 	int nat_blks_in_log; /* number of nat entries in current log block */
 	int cur_nat_log;
-#if DELAYED_MERGE
 	struct radix_tree_root nat_log_root[2];	/* in-mem cached nat log blocks */
 	unsigned int nat_ltree_idx;				/* current sit log tree index */
 	struct rw_semaphore nat_ltree_slock; /* locking log tree switch */
-#else
-	struct radix_tree_root nat_log_root;
-#endif
 #endif
 	nid_t max_nid;			/* maximum possible node ids */
 	nid_t available_nids;		/* # of available node ids */
@@ -1097,7 +1087,6 @@ struct f2fs_sm_info {
 	unsigned int logged_sum_blks;
 	unsigned int sum_log_tree_entries;		/* the numbers of entries in log tree */
 
-#if DELAYED_MERGE
 	struct radix_tree_root sit_log_root[2];	/* in-mem cached sit log entries */
 	unsigned int sit_ltree_idx;				/* current sit log tree index */
 	struct rw_semaphore sit_ltree_slock; /* locking log tree switch */
@@ -1105,10 +1094,6 @@ struct f2fs_sm_info {
 	struct radix_tree_root ssa_log_root[2];	/* in-mem cached sum log blocks */
 	unsigned int cur_log_tree_idx;				/* current tree index */
 	struct rw_semaphore ssa_ltree_slock; /* locking log tree switch */
-#else
-	struct radix_tree_root sit_log_root;	/* in-mem cached sit log entries */
-	struct radix_tree_root ssa_log_root;	/* in-mem cached sum log blocks */
-#endif
 #endif
   unsigned int grid_cnt;  /* the number of zones to grid stripe for a segment */
 #if STRIPE
@@ -1118,6 +1103,8 @@ struct f2fs_sm_info {
   unsigned short node_alloc_IG[IG_NR]; /* mapping IG to node stream */
   unsigned short data_alloc_IG[IG_NR]; /* mapping IG to data stream */
   unsigned int free_sz_cnt[IG_NR];
+  unsigned int prefree_sz_cnt[IG_NR];
+  spinlock_t ig_lock;
 #endif
 #if SEP_SSA
 // usable segment excluding summary block in a section
@@ -1144,6 +1131,10 @@ struct f2fs_sm_info {
 	unsigned int min_fsync_blocks;	/* threshold for fsync */
 	unsigned int min_seq_blocks;	/* threshold for sequential blocks */
 	unsigned int min_hot_blocks;	/* threshold for hot block allocation */
+#if IGZO
+	unsigned int min_free_secs_per_ig_soft;
+	unsigned int min_free_secs_per_ig_hard;
+#endif
 	unsigned int min_ssr_sections;	/* threshold to trigger SSR allocation */
 
 	/* for flush command control */
@@ -1178,9 +1169,7 @@ enum count_type {
 	F2FS_RD_META,
 	F2FS_DIO_WRITE,
 	F2FS_DIO_READ,
-#if DELAYED_MERGE
   F2FS_MERGE_META,
-#endif
 	NR_COUNT_TYPE,
 };
 
@@ -1679,6 +1668,23 @@ struct decompress_io_ctx {
 #define MAX_COMPRESS_LOG_SIZE		8
 #define MAX_COMPRESS_WINDOW_SIZE(log_size)	((PAGE_SIZE) << (log_size))
 
+//multi-thread scalability
+struct f2fs_stream_writer {
+  struct task_struct *writer;
+  wait_queue_head_t data_wq;
+  spinlock_t data_list_lock;
+  struct list_head data_list;
+  int stream_type;
+  struct f2fs_sb_info *sbi;
+};
+
+struct data_list {
+	struct list_head list;
+	struct page *page;
+	enum iostat_type io_type;
+	struct writeback_control wbc;
+};
+
 struct f2fs_sb_info {
 	struct super_block *sb;			/* pointer to VFS super block */
 	struct proc_dir_entry *s_proc;		/* proc entry */
@@ -1925,13 +1931,15 @@ struct f2fs_sb_info {
 	struct iostat_lat_info *iostat_io_lat;
 #endif
 
-#if DELAYED_MERGE
 	struct task_struct *merge_thread;
-#endif
 #if ZF2FS_MONITOR
   struct task_struct *monitor_thread;
-  int f2fs_open_zones;
 #endif
+  struct task_struct *stat_thread;
+  int f2fs_open_zones;
+// for multi-thread
+  struct f2fs_stream_writer *writers[NR_CURSEG_PERSIST_TYPE];
+
 };
 
 #ifdef CONFIG_F2FS_FAULT_INJECTION
@@ -3547,6 +3555,12 @@ int f2fs_commit_super(struct f2fs_sb_info *sbi, bool recover);
 int f2fs_sync_fs(struct super_block *sb, int sync);
 int f2fs_sanity_check_ckpt(struct f2fs_sb_info *sbi);
 
+int f2fs_stream_writer_func(void *data);
+#if PROFILING
+/* for performance monitoring */
+int f2fs_start_stat_thread(struct f2fs_sb_info *sbi);
+void f2fs_stop_stat_thread(struct f2fs_sb_info *sbi);
+#endif
 /*
  * hash.c
  */
@@ -3611,6 +3625,7 @@ int merge_nat(struct f2fs_sb_info *sbi, int foreground);
 /*
  * segment.c
  */
+int f2fs_get_segment_type(struct f2fs_io_info *fio);
 bool f2fs_need_SSR(struct f2fs_sb_info *sbi);
 void f2fs_register_inmem_page(struct inode *inode, struct page *page);
 void f2fs_drop_inmem_pages_all(struct f2fs_sb_info *sbi, bool gc_failure);
@@ -3699,11 +3714,7 @@ unsigned int f2fs_usable_blks_in_seg(struct f2fs_sb_info *sbi,
 inline int f2fs_issue_discard_zone(struct f2fs_sb_info *sbi,
 		struct block_device *bdev, block_t blkstart,
 		block_t blklen);
-#if DELAYED_MERGE
 int merge_ssa(struct f2fs_sb_info *sbi, int foreground);
-#else
-int merge_ssa(struct f2fs_sb_info *sbi);
-#endif
 int __flush_sum_blks(struct f2fs_sb_info *sbi);
 int flush_sum_blks(struct f2fs_sb_info *sbi, struct cp_control *cpc);
 int merge_sit(struct f2fs_sb_info *sbi, int foreground);
@@ -3761,10 +3772,8 @@ void f2fs_destroy_checkpoint_caches(void);
 int f2fs_issue_checkpoint(struct f2fs_sb_info *sbi);
 int f2fs_start_ckpt_thread(struct f2fs_sb_info *sbi);
 void f2fs_stop_ckpt_thread(struct f2fs_sb_info *sbi);
-#if DELAYED_MERGE
 int f2fs_start_merge_thread(struct f2fs_sb_info *sbi);
 void f2fs_stop_merge_thread(struct f2fs_sb_info *sbi);
-#endif
 void f2fs_init_ckpt_req_control(struct f2fs_sb_info *sbi);
 
 #if META_FOR_ZNS
@@ -4743,14 +4752,12 @@ static inline int get_dirty_sum_pages(struct f2fs_sb_info *sbi){
 #define nat_entries_blkz(sbi) (meta_blks_zone_cap(sbi) * \
 		NAT_ENTRY_PER_BLOCK)
 
-#if DELAYED_MERGE
 static inline int get_cur_log(struct f2fs_sb_info *sbi, int log_type){
 	if (log_type == SSA) {
 		return SM_I(sbi)->cur_sum_log;
 	}
 	return -1;
 }
-#endif /* DELAYED_MERGE */
 #endif /* META_FOR_ZNS */
 
 #endif /* _LINUX_F2FS_H */

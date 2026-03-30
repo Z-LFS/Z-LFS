@@ -37,17 +37,15 @@
 
 #include "zoned.h"
 #include <linux/kernel.h>
-#if ZF2FS_MONITOR
 #include <linux/delay.h>
 #include <linux/timer.h>
-#endif
+
+#include "calclock.h"
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/f2fs.h>
 
 static struct kmem_cache *f2fs_inode_cachep;
-
-#include "zoned.h"
 
 #ifdef CONFIG_F2FS_FAULT_INJECTION
 
@@ -336,7 +334,6 @@ int f2fs_monitor_func(void *data){
   
   unsigned int max_total_wanted = (2 * IG_SIZE * IG_NR + 4 * IG_SIZE) / IG_SIZE;
   unsigned int max_wanted_size =  128 / IG_SIZE;//16; // 128
-//  int min_wanted_size = 1; // 1
   int min_wanted_size = 1; // 1
   
   unsigned int data_pages, node_pages;
@@ -349,14 +346,7 @@ int f2fs_monitor_func(void *data){
   block_t intensive_log_pages = 0;
   int target_wanted_sum = 0;
 
-  printk("HD WD CD HN WN CN");
   while (!kthread_should_stop()) {
-/*
-      unsigned int *free_cnt = SM_I(sbi)->free_sz_cnt;
-      printk("(%s:%d) free cnt %u %u %u %u %u %u",
-        __func__, __LINE__, free_cnt[0],free_cnt[1],free_cnt[2],
-                            free_cnt[3],free_cnt[4],free_cnt[5]);
-*/
       data_pages = f2fs_monitor_pages[CURSEG_HOT_DATA]
                  + f2fs_monitor_pages[CURSEG_WARM_DATA]
                  + f2fs_monitor_pages[CURSEG_COLD_DATA];
@@ -392,14 +382,24 @@ int f2fs_monitor_func(void *data){
           active_node_log++;
         }
       }
-      reclaim_zones(sbi, curseg);
-      move_to_reclaim(sbi, curseg);
+      if (!is_gc_intensive(sbi)) {
+        reclaim_zones(sbi, curseg);
+        move_to_reclaim(sbi, curseg);
+      }
 
     }
-/*
-    printk("(%s:%d) active data %d node %d", 
-        __func__, __LINE__, active_data_log, active_node_log);
-*/
+
+    if (is_gc_intensive(sbi)) {
+      for (i = 0; i < 6; i++) {
+        if (CURSEG_COLD_DATA) {
+          prev_target[i] = NUM_SZ_FOR_GC_COLD;
+        } else {
+          prev_target[i] = NUM_SZ_FOR_GC;
+        }
+      }
+      goto skip_speculation;
+    }
+
     // set target striping width
     for (i = 0; i < 6; i++) {
 
@@ -425,16 +425,6 @@ int f2fs_monitor_func(void *data){
       }
 
       if (i == CURSEG_COLD_DATA) {
-/*
-        printk("(%s:%d) prev_target %d %d %d %d %d %d", __func__,__LINE__,
-          prev_target[0],
-          prev_target[1],
-          prev_target[2],
-          prev_target[3],
-          prev_target[4],
-          prev_target[5]);
-        printk("adjust: %d, %d", target_wanted_sum, intensive_log);
-*/
         if (active_data_log > 1 && target_wanted_sum < IG_NR) {
           prev_target[intensive_log] += (IG_NR - target_wanted_sum);
         }
@@ -452,8 +442,8 @@ int f2fs_monitor_func(void *data){
 
       f2fs_monitor_pages[i] = 0;
     }
-
-    // deciside to scale up/down superzone
+skip_speculation:
+    // decide to scale up/down superzone
     for (i = 0; i < 6; i++) {
       curseg = CURSEG_I(sbi, i);
       if (prev_target[i] > curseg->wanted_size) {
@@ -464,15 +454,18 @@ int f2fs_monitor_func(void *data){
         decisions[i] = -1;
       }
     }
-
+#if DEBUG
+    printk("Decisions: %d %d %d %d %d %d",
+      decisions[0],
+      decisions[1],
+      decisions[2],
+      decisions[3],
+      decisions[4],
+      decisions[5]);
+#endif
     active_data_log = 0;
     active_node_log = 0;
 
-// for debugging
-/*
-    printk("(%s:%d) decisions %d %d %d %d %d %d", __func__,__LINE__,
-      decisions[0],decisions[1],decisions[2],decisions[3],decisions[4],decisions[5]);
-*/
     for (j = 0; j < 6; j++) {
 
       curseg = CURSEG_I(sbi, j);
@@ -531,17 +524,6 @@ int f2fs_monitor_func(void *data){
       }
 
     }
-/*
-    printk("opened: %u wanted: %u %u %u %u %u %u",
-      opened, 
-      CURSEG_I(sbi, CURSEG_HOT_DATA)->wanted_size,
-      CURSEG_I(sbi, CURSEG_WARM_DATA)->wanted_size,
-      CURSEG_I(sbi, CURSEG_COLD_DATA)->wanted_size,
-      CURSEG_I(sbi, CURSEG_HOT_NODE)->wanted_size,
-      CURSEG_I(sbi, CURSEG_WARM_NODE)->wanted_size,
-      CURSEG_I(sbi, CURSEG_COLD_NODE)->wanted_size
-    );
-*/
     msleep(time_ms);
   }
   return 0;
@@ -552,27 +534,143 @@ int f2fs_start_monitor_thread(struct f2fs_sb_info *sbi)
 {
   //sbi->f2fs_open_zones = 48 /* 6 logs * grid_cnt*/ + 16 /* reserved for meta */;
   sbi->f2fs_open_zones = 2 /* hot/warm node */ * IG_SIZE /* grid_cnt*/ + 16 /* reserved for meta */;
-  //printk("(%s : %d) start monitor thread", __func__, __LINE__);
   sbi->monitor_thread = kthread_run(f2fs_monitor_func, sbi, "f2fs_monitor"); 
 
   if (IS_ERR(sbi->monitor_thread)) {
-    //printk("(%s : %d) start monitor thread failed", __func__, __LINE__);
     sbi->monitor_thread = NULL;
     return -ENOMEM;
   }
 
-//  printk("(%s : %d) start monitor thread success", __func__, __LINE__);
   return 0;
 }
 
 void f2fs_stop_monitor_thread(struct f2fs_sb_info *sbi)
 {
-//  printk("(%s : %d) stop monitor thread", __func__, __LINE__);
   if (sbi->monitor_thread) {
     kthread_stop(sbi->monitor_thread);
   }
 }
+
 #endif
+
+int f2fs_stat_func(void *data)
+{
+	struct f2fs_sb_info *sbi = data;
+	long time_ms = F2FS_STAT_INTERVAL_MS;
+
+	/* 1. Declare local variables for each stat item */
+	F2FS_STAT_LIST(F2FS_STAT_DEF_VARS)
+
+	printk(KERN_INFO "F2FS_STAT thread started.\n");
+	/* 2. Print header */
+	//printk(KERN_INFO "F2FS_STAT " F2FS_STAT_LIST(F2FS_STAT_PRINT_HEADER2) "\n");
+
+	while (!kthread_should_stop()) {
+		msleep(time_ms);
+
+		/* 3. Atomically get and reset counters */
+		F2FS_STAT_LIST(F2FS_STAT_ATOMIC_EXCHANGE)
+
+		/* 4. Print statistics */
+//		printk(KERN_INFO "F2FS_STAT: " F2FS_STAT_LIST(F2FS_STAT_PRINT_FMT) " %s " "\n",
+//			F2FS_STAT_LIST(F2FS_STAT_PRINT_ARGS) "done");
+
+		/* 1. func names */
+    printk(KERN_INFO "%-15s" F2FS_STAT_LIST(F2FS_STAT_PRINT_FMT_COLUMN) "%s\n",
+           "FUNC:", F2FS_STAT_LIST(F2FS_STAT_PRINT_NAME) " |");
+
+    /* 2. Count (cnt) */
+    printk(KERN_INFO "%-15s" F2FS_STAT_LIST(F2FS_STAT_PRINT_FMT_VALUE) "%s\n",
+           "--> cnt:", F2FS_STAT_LIST(F2FS_STAT_PRINT_CNT) " |");
+
+    /* 3. Latency (lat) */
+    printk(KERN_INFO "%-15s" F2FS_STAT_LIST(F2FS_STAT_PRINT_FMT_VALUE) "%s\n",
+           "--> lat(ns):", F2FS_STAT_LIST(F2FS_STAT_PRINT_LAT) " |");
+
+    /* 4. Total Time (total) */
+    printk(KERN_INFO "%-15s" F2FS_STAT_LIST(F2FS_STAT_PRINT_FMT_VALUE) "%s\n",
+           "--> total(us):", F2FS_STAT_LIST(F2FS_STAT_PRINT_TOTAL) " |");
+
+	}
+	return 0;
+}
+
+int f2fs_start_stat_thread(struct f2fs_sb_info *sbi)
+{
+	sbi->stat_thread = kthread_run(f2fs_stat_func, sbi, "f2fs_stat");
+	if (IS_ERR(sbi->stat_thread))
+		return PTR_ERR(sbi->stat_thread);
+	return 0;
+}
+
+void f2fs_stop_stat_thread(struct f2fs_sb_info *sbi)
+{
+	if (sbi->stat_thread)
+		kthread_stop(sbi->stat_thread);
+}
+
+#if ZLFS_DISPATCH
+int f2fs_start_writers(struct f2fs_sb_info *sbi) {
+
+  dev_t dev = sbi->sb->s_bdev->bd_dev;
+  int err = 0;
+  int i;
+
+  for (i = 0; i < NR_CURSEG_PERSIST_TYPE; i++) {
+    sbi->writers[i] = f2fs_kmalloc(sbi,
+			sizeof(struct f2fs_stream_writer), GFP_KERNEL);
+    if (!sbi->writers[i]) {
+      err = -ENOMEM;
+      goto free_writers;
+    }
+    init_waitqueue_head(&sbi->writers[i]->data_wq);
+    sbi->writers[i]->stream_type = i;
+    sbi->writers[i]->sbi = sbi;
+    INIT_LIST_HEAD(&sbi->writers[i]->data_list);
+    spin_lock_init(&sbi->writers[i]->data_list_lock);
+    sbi->writers[i]->writer = kthread_run(f2fs_stream_writer_func,
+      sbi->writers[i], "f2fs_swriter(%d)-%u:%u", i, MAJOR(dev), MINOR(dev));
+  }
+
+  return err;
+free_writers:
+  for (; i > 0; i--)
+	kfree(sbi->writers[i-1]);
+  return err;
+}
+
+void f2fs_stop_writers(struct f2fs_sb_info *sbi) {
+
+	struct f2fs_stream_writer **writers = sbi->writers;
+	int i;
+
+  for (i = 0; i < NR_CURSEG_PERSIST_TYPE; i++) {
+	  if (!writers[i] || !writers[i]->writer)
+      continue;
+	  kthread_stop(writers[i]->writer);
+	  wake_up_all(&writers[i]->data_wq);
+	  kfree(writers[i]);
+	  writers[i] = NULL;
+  }
+}
+
+#else // ZLFS_DISPATCH
+int f2fs_start_writers(struct f2fs_sb_info *sbi) {
+
+  int i;
+
+  for (i = 0; i < NR_CURSEG_PERSIST_TYPE; i++) {
+    sbi->writers[i] = NULL;
+  }
+  return 0;
+}
+
+void f2fs_stop_writers(struct f2fs_sb_info *sbi) {
+  return;
+}
+
+#endif // ZLFS_DISPATCH
+
 
 void f2fs_printk(struct f2fs_sb_info *sbi, const char *fmt, ...)
 {
@@ -1873,18 +1971,20 @@ static void f2fs_put_super(struct super_block *sb)
 	 * after then, all checkpoints should be done by each process context.
 	 */
 	f2fs_stop_ckpt_thread(sbi);
-#if DELAYED_MERGE
-#if !NAIVE_MFZ
 	/* 
 	 * For umount, merge is performed in foreground
 	 */
 	f2fs_stop_merge_thread(sbi);
-#endif
-#endif
 #if ZF2FS_MONITOR
   f2fs_stop_monitor_thread(sbi);
 #endif
+#if PROFILING
+	if (sbi->stat_thread) {
+		f2fs_stop_stat_thread(sbi);
+	}
+#endif
 
+  f2fs_stop_writers(sbi);
 	/*
 	 * We don't need to do checkpoint when superblock is clean.
 	 * But, the previous checkpoint was not done by umount, it needs to do
@@ -3535,14 +3635,8 @@ static inline bool sanity_check_area_boundary(struct f2fs_sb_info *sbi,
 		bound_err = 1;
 	}
 	
-#if GRID_STRIPE
 	if ((sum_log_blkaddr + (segment_count_ssa_log << log_blocks_per_seg)) >
 							main_blkaddr) {
-    printk("GRID_STRIPE");
-#else
-	if ((sum_log_blkaddr + (segment_count_ssa_log << log_blocks_per_seg)) !=
-							main_blkaddr) {
-#endif
 		f2fs_info(sbi, "Wrong SSA log area boundary, start(%u) end(%u) blocks(%u)",
 			  sum_log_blkaddr, main_blkaddr,
 			  segment_count_ssa_log << log_blocks_per_seg);
@@ -4658,8 +4752,6 @@ try_onemore:
 			    err);
 			goto stop_ckpt_thread;
 		}
-#if DELAYED_MERGE
-#if !NAIVE_MFZ
 		err = f2fs_start_merge_thread(sbi);
 		if (err) {
 			f2fs_err(sbi,
@@ -4667,8 +4759,6 @@ try_onemore:
 			    err);
 			goto stop_merge_thread;
 		}
-#endif
-#endif
 	}
 
 	/* setup f2fs internal modules */
@@ -4841,6 +4931,12 @@ reset_checkpoint:
 	}
 	kvfree(options);
 
+  // for multi-thread scalability
+  err = f2fs_start_writers(sbi);
+  if (err) {
+    f2fs_stop_writers(sbi);
+    goto sync_free_meta;
+  }
 	/* recover broken superblock */
 	if (recovery) {
 		err = f2fs_commit_super(sbi, true);
@@ -4866,6 +4962,12 @@ reset_checkpoint:
 			    err);
 			f2fs_stop_monitor_thread(sbi);
 		}
+#endif
+#if PROFILING
+	err = f2fs_start_stat_thread(sbi);
+	if (err) {
+		f2fs_err(sbi, "Failed to start F2FS stat thread (%d)", err);
+	}
 #endif
 
 	return 0;
@@ -4910,12 +5012,8 @@ free_nm:
 free_sm:
 	f2fs_destroy_segment_manager(sbi);
 	f2fs_destroy_post_read_wq(sbi);
-#if DELAYED_MERGE
-#if !NAIVE_MFZ
 stop_merge_thread:
 	f2fs_stop_merge_thread(sbi);
-#endif
-#endif
 stop_ckpt_thread:
 	f2fs_stop_ckpt_thread(sbi);
 free_devices:
@@ -5137,45 +5235,8 @@ fail:
 	return err;
 }
 
-extern unsigned long long wcpTime, wcpCnt;
-extern unsigned long long wcp_waitTime, wcp_waitCnt;
-extern unsigned long long wait_total_submit_time, wait_total_wait_time;
-extern unsigned long long docpTime, docpCnt;
-extern unsigned long long sync_meta1_time, sync_meta1_cnt;
-extern unsigned long long sync_meta2_time, sync_meta2_cnt;
-extern unsigned long long wait_meta1_time, wait_meta1_cnt;
-extern unsigned long long wait_data1_time, wait_data1_cnt;
-extern unsigned long long wait_data2_time, wait_data2_cnt;
-extern unsigned long long commit_cp_time, commit_cp_cnt;
-extern unsigned long long unblockTime, unblockCnt;
-extern unsigned long long zone_finTime, zone_finCnt;
-
-//extern unsigned long long dogcTime, dogcCnt;
-//extern unsigned long long gcTotalTime, doTotalCnt;
-
-extern unsigned long long unlink_time[6];
-extern unsigned long long unlink_cnt[6];
-
 static void __exit exit_f2fs_fs(void)
 {
-/*
-	printk("wcp %llu %llu", wcpTime, wcpCnt);
-	printk("wcp_wait %llu %llu", wcp_waitTime, wcp_waitCnt);
-	printk("wait all pages %llu %llu", wait_total_submit_time, wait_total_wait_time);
-	printk("docp %llu %llu", docpTime, docpCnt);
-	printk("sm1 %llu %llu", sync_meta1_time, sync_meta1_cnt);
-	printk("sm2 %llu %llu", sync_meta2_time, sync_meta2_cnt);
-	printk("wm1 %llu %llu", wait_meta1_time, wait_meta1_cnt);
-	printk("wd1 %llu %llu", wait_data1_time, wait_data1_cnt);
-	printk("wd2 %llu %llu", wait_data2_time, wait_data2_cnt);
-	printk("commit %llu %llu", commit_cp_time, commit_cp_cnt);
-	printk("unblock %llu %llu", unblockTime, unblockCnt);
-	printk("zone_fin %llu %llu", zone_finTime, zone_finCnt);
-	int i;
-	for(i=0;i<6;i++){
-		printk("unlink[%d] %llu %llu", i, unlink_time[i], unlink_cnt[i]);
-	}
-*/
 	printk("exit");
 	
 	f2fs_destroy_casefold_cache();
@@ -5205,4 +5266,3 @@ MODULE_AUTHOR("Samsung Electronics's Praesto Team");
 MODULE_DESCRIPTION("Flash Friendly File System");
 MODULE_LICENSE("GPL");
 MODULE_SOFTDEP("pre: crc32");
-

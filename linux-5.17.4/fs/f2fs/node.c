@@ -265,12 +265,8 @@ static void __insert_nat_log_set(struct f2fs_nm_info *nm_i,
 	struct nat_entry_set *head;
 	//printk("(%s : %d) insert ne to of nid(%u) to log set ", __func__, __LINE__, nat_get_nid(ne));
 
-#if DELAYED_MERGE
 	// insert current log tree
 	head = ____grab_nat_entry_set(ne, &nm_i->nat_log_root[nm_i->nat_ltree_idx]);
-#else
-	head = ____grab_nat_entry_set(ne, &nm_i->nat_log_root);
-#endif
 	head->entry_cnt++;
 
 	//printk("(%s : %d) insert ne to of nid(%u) to log set ", __func__, __LINE__, nat_get_nid(ne));
@@ -636,13 +632,8 @@ retry:
 
 #if META_FOR_ZNS //TODO read node page from log tree
 	//lock cache tree;
-#if DELAYED_MERGE
 	head = radix_tree_lookup(&nm_i->nat_log_root[nm_i->nat_ltree_idx], NAT_BLOCK_OFFSET(nid));
-#else
-	head = radix_tree_lookup(&nm_i->nat_log_root, NAT_BLOCK_OFFSET(nid));
-#endif
 	if(head){
-//		list_for_each_entry(e, &head->entry_list, list){
 		// get the newest node info in the log tree
 		// log tree do not update its entries, just add to tail
 		list_for_each_entry_reverse(e, &head->entry_list, list){
@@ -661,7 +652,6 @@ retry:
 		}
 	}
 	//unlock cache tree;
-#if DELAYED_MERGE
 	//search merge tree
 	down_read(&nm_i->nat_ltree_slock);
 	head = radix_tree_lookup(&nm_i->nat_log_root[nm_i->nat_ltree_idx^0x1],
@@ -687,8 +677,6 @@ retry:
 		}
 	}
 	up_read(&nm_i->nat_ltree_slock);
-
-#endif
 
 #else
 
@@ -3128,7 +3116,6 @@ static void insert_nat_log_tree(struct f2fs_sb_info *sbi,
 
 static inline void clean_nat_log_set(struct f2fs_sb_info *sbi,
 		struct nat_entry_set *set, int foreground){
-#if DELAYED_MERGE
 	int idx;
 	f2fs_bug_on(sbi, set->entry_cnt);
 	if (foreground)
@@ -3136,10 +3123,6 @@ static inline void clean_nat_log_set(struct f2fs_sb_info *sbi,
 	else
 		idx = NM_I(sbi)->nat_ltree_idx ^ 0x1;
 	radix_tree_delete(&NM_I(sbi)->nat_log_root[idx], set->set);
-#else
-	f2fs_bug_on(sbi, set->entry_cnt);
-	radix_tree_delete(&NM_I(sbi)->nat_log_root, set->set);
-#endif
 	kmem_cache_free(nat_entry_set_slab, set);
 }
 static void del_from_log_tree(struct f2fs_sb_info *sbi, 
@@ -3160,12 +3143,10 @@ static int merge_nat_set(struct f2fs_sb_info *sbi,
 	struct nat_entry *ne, *cur;
 
 	page = get_next_nat_page(sbi, start_nid); //TODO:consider zone cap
-//	printk("(%s:%d) merge nat get page : %lx", __func__, __LINE__, page->index);
 	if (IS_ERR(page))
 		return PTR_ERR(page);
 	nat_blk = page_address(page);
 	f2fs_bug_on(sbi, !nat_blk);
-	//printk("(%s:%d) merge nat set of start nid(%u), page index(%lu)", __func__, __LINE__, start_nid, page->index);
 
 	list_for_each_entry_safe(ne, cur, &set->entry_list, list) {
 		struct f2fs_nat_entry *raw_ne;
@@ -3174,8 +3155,6 @@ static int merge_nat_set(struct f2fs_sb_info *sbi,
 		f2fs_bug_on(sbi, nat_get_blkaddr(ne) == NEW_ADDR);
 		raw_ne = &nat_blk->entries[nid - start_nid];
 		raw_nat_from_node_info(raw_ne, &ne->ni);
-//		nat_reset_flag(ne);
-	//	printk("(%s:%d) merge nat entry nid : %u, %u", __func__, __LINE__, nid, nat_get_blkaddr(ne));
 		del_from_log_tree(sbi, set, ne);
 	}
 	//update_nat_bits(sbi, start_nid, page);
@@ -3198,7 +3177,6 @@ static int merge_nat_set(struct f2fs_sb_info *sbi,
 		printk("(%s:%d) error : current set of set no(%u) is not empty!",
 				__func__, __LINE__, set->set);
 	}
-	//printk("(%s:%d) merge nat set done", __func__, __LINE__);
 	return 0;
 }
 int merge_nat(struct f2fs_sb_info *sbi, int foreground){
@@ -3213,11 +3191,8 @@ int merge_nat(struct f2fs_sb_info *sbi, int foreground){
 	int wp = 0;	// wp in unit of blk offset in zone
 	unsigned int zone_cap = meta_blks_zone_cap(sbi);
 	int ret = 0;
-	//int i, base, tmp;
 	
-	//printk("(%s:%d)merge start, zone cap: %u", __func__, __LINE__, zone_cap);
 	// nat log set tree -> list of dirty set
-#if DELAYED_MERGE
 	int merge_tree_idx;
 	if (foreground) 
 		merge_tree_idx = nm_i->nat_ltree_idx;
@@ -3227,12 +3202,7 @@ int merge_nat(struct f2fs_sb_info *sbi, int foreground){
 	while ((found = ____gang_lookup_nat_set(set_idx, 
 					SETVEC_SIZE, setvec,
 					&nm_i->nat_log_root[merge_tree_idx]))){
-#else
-	while ((found = ____gang_lookup_nat_set(set_idx, 
-					SETVEC_SIZE, setvec, &nm_i->nat_log_root))){
-#endif
 		unsigned idx;
-
 		set_idx = setvec[found - 1]->set + 1;
 		for (idx = 0; idx < found; idx++)
 			__adjust_nat_entry_set(setvec[idx], &sets, 0);
@@ -3290,35 +3260,10 @@ int merge_nat(struct f2fs_sb_info *sbi, int foreground){
 		}
 	}
 	
-#if DELAYED_MERGE
 	f2fs_bug_on(sbi, !radix_tree_empty(&nm_i->nat_log_root[nm_i->nat_ltree_idx^0x1]));
-#else
-	reset_meta_zone_towrite(sbi, cur_zone_offset, NAT_LOG);
-	NM_I(sbi)->nat_blks_in_log = 0;
-	f2fs_bug_on(sbi, !radix_tree_empty(&nm_i->nat_log_root));
-#endif
 
-#if 0
-	for(i=0;i<nm_i->bitmap_size;i++){
-		if((i % zone_cap)==0)
-			base = (f2fs_test_bit(i, nm_i->nat_bitmap) == 0)? 0 : 1;
-		else{
-			tmp = (f2fs_test_bit(i, nm_i->nat_bitmap) == 0)? 0 : 1;
-			if(base != tmp){
-				/*printk("(%s:%d) nat bitmap check failed! %dth bit(%d) is different from base(%d)",
-						__func__, __LINE__, i,
-						f2fs_test_bit(i, nm_i->nat_bitmap),
-						base);
-				*/
-				f2fs_bug_on(sbi, 1);
-				return -1;
-			}
-		}
-	}
-#endif
 	return ret;
 }
-#if DELAYED_MERGE
 static int __flush_nat_entry_set(struct f2fs_sb_info *sbi,
 		struct nat_entry_set *set, struct cp_control *cpc)
 {
@@ -3330,9 +3275,6 @@ static int __flush_nat_entry_set(struct f2fs_sb_info *sbi,
 	
 	if ((cpc->reason & CP_UMOUNT))
 		fg_merge = true;
-#if NAIVE_MFZ
-  fg_merge = true;
-#endif
 
 	if (!fg_merge) {
 		page = get_next_log_page(sbi, NAT_LOG);
@@ -3485,23 +3427,15 @@ int f2fs_flush_nat_entries(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 
 	if (!nm_i->nat_cnt[DIRTY_NAT])
 		return 0;
-#if !NAIVE_MFZ	
 	if((cpc->reason & CP_UMOUNT)) {
 		merge = true;
 		fg_merge = true;
 	} else if (!has_curlog_space(sbi, 1, NAT_LOG)){
-		//set_ckpt_flags(sbi, CP_NAT_MERGE_FLAG);
-		printk("(%s:%d) set SSA Merge flag here", __func__, __LINE__);
-		//switch_cur_log(sbi, SSA_LOG);
 		cpc->merge = cpc->merge | 0x2;
 		NM_I(sbi)->cur_nat_log ^= 0x1;
 		NM_I(sbi)->nat_blks_in_log = 0;
 		merge = true;
 	}
-#else
-  merge = true;
-  fg_merge = true;
-#endif
 	down_write(&nm_i->nat_tree_lock);
 
 	//add dirty nat entries in a tmp nat entry set
@@ -3525,173 +3459,31 @@ int f2fs_flush_nat_entries(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 
 	up_write(&nm_i->nat_tree_lock);
 	/* Allow dirty nats by node block allocation in write_begin */
-	if(fg_merge)
-		err = merge_nat(sbi, 1);
+	if(fg_merge) {
+		/*
+		 * In case of umount, we should merge the other log tree as well,
+		 * which can be remained by pending merge request.
+		 * Let's merge the older one first.
+		 */
+		if (is_set_ckpt_flags(sbi, CP_NAT_MERGE_FLAG)) {
+			if (unlikely(radix_tree_empty(&nm_i->nat_log_root[nm_i->nat_ltree_idx ^ 0x1])))
+				f2fs_warn(sbi, "CP_NAT_MERGE_FLAG is set but nat_log_root is empty");
 
-	f2fs_submit_merged_write(sbi, META);
-
-	return err;
-}
-#else
-static int __flush_nat_entry_set(struct f2fs_sb_info *sbi,
-		struct nat_entry_set *set, struct cp_control *cpc)
-{
-	struct nat_entry *ne, *cur;
-	struct page *page = NULL;
-	struct f2fs_nat_log_block *raw_nat_log = NULL;
-	bool merge = false;
-	unsigned int offset = 0;
-	
-	if((cpc->reason & CP_UMOUNT) ||
-			!has_curlog_space(sbi, NM_I(sbi)->nat_cnt[DIRTY_NAT], NAT_LOG))
-		merge = true;
-	if(!merge) {
-		page = get_next_log_page(sbi, NAT_LOG);
-		if(!page){
-			printk("(%s : %d) error : failed to get next log page",
-					__func__, __LINE__);
-			f2fs_put_page(page, 1);
-			return -1;
-		} 	
-		if (IS_ERR(page))
-			return PTR_ERR(page);
-		
-		raw_nat_log = page_address(page);
-		f2fs_bug_on(sbi, !raw_nat_log);
-	} 
-
-	/* flush dirty nats in nat entry set */
-	list_for_each_entry_safe(ne, cur, &set->entry_list, list) {
-		struct f2fs_nat_entry *raw_ne;
-		nid_t nid = nat_get_nid(ne);
-
-		//printk("(%s : %d) start flush ne of nid : %u", __func__, __LINE__, nid);
-		f2fs_bug_on(sbi, nat_get_blkaddr(ne) == NEW_ADDR);
-		if (!merge) {
-			//page write
-			if(offset >= NAT_LOG_ENTRIES){
-				//printk("(%s : %d) debug: offset >= NAT_LOG_ENTRIES(%u)",
-				//__func__, __LINE__, NAT_LOG_ENTRIES);
-
-				raw_nat_log->n_nats = cpu_to_le16(offset);
-				if(!clear_page_dirty_for_io(page)){
-					printk("(%s : %d) error during clear page dirty flag",
-							__func__, __LINE__);
-				}
-				if (f2fs_sync_single_meta_page(page)) {
-					unlock_page(page);
-					printk("(%s : %d) error during sync log meta page",
-							__func__, __LINE__);
-				}
-				f2fs_put_page(page, 0);
-
-				page = get_next_log_page(sbi, NAT_LOG);
-				if(!page){
-					printk("(%s : %d) error : failed to get next log page", __func__, __LINE__);
-					f2fs_put_page(page, 1);
-					return -1;
-				} 	
-				if (IS_ERR(page))
-					return PTR_ERR(page);
-
-				raw_nat_log = page_address(page);
-				f2fs_bug_on(sbi, !raw_nat_log);
-				offset = 0;
-			}
-			raw_ne = &nat_in_log(raw_nat_log, offset);
-			nid_in_log(raw_nat_log, offset) = cpu_to_le32(nid);
-			raw_nat_from_node_info(raw_ne, &ne->ni);
-
-			offset++;
-		}
-		nat_reset_flag(ne);
-		__clear_nat_cache_dirty(NM_I(sbi), set, ne);
-
-		if (nat_get_blkaddr(ne) == NULL_ADDR) {
-			add_free_nid(sbi, nid, false, true);
+			err = merge_nat(sbi, false);
+			if (err)
+				return err;
+			clear_ckpt_flags(sbi, CP_NAT_MERGE_FLAG);
 		} else {
-			spin_lock(&NM_I(sbi)->nid_list_lock);
-			update_free_nid_bitmap(sbi, nid, false, false);
-			spin_unlock(&NM_I(sbi)->nid_list_lock);
+			if (unlikely(!radix_tree_empty(&nm_i->nat_log_root[nm_i->nat_ltree_idx ^ 0x1])))
+				f2fs_warn(sbi, "nat_log_root is not empty but CP_NAT_MERGE_FLAG is not set");
 		}
-
-		//insert nat log cache entry - reference: set_node_addr()
-		insert_nat_log_tree(sbi, ne);
+		err = merge_nat(sbi, true);
 	}
-
-	if(!merge){
-		raw_nat_log->n_nats = cpu_to_le16(offset);
-		if(!clear_page_dirty_for_io(page)){
-			printk("(%s : %d) error during clear page dirty flag",
-					__func__, __LINE__);
-		}
-		if (f2fs_sync_single_meta_page(page)) {
-			unlock_page(page);
-			printk("(%s : %d) error during sync log meta page",
-					__func__, __LINE__);
-		}
-		f2fs_put_page(page, 0);
-		//printk("(%s : %d) n_sits cpu : %x, le : %x", 
-		//		__func__, __LINE__, offset, raw_nat_log->n_nats);
-	} 
-
-
-	/* Allow dirty nats by node block allocation in write_begin */
-	if (!set->entry_cnt) {
-		radix_tree_delete(&NM_I(sbi)->nat_set_root, set->set);
-		kmem_cache_free(nat_entry_set_slab, set);
-	}
-	return 0;
-}
-int f2fs_flush_nat_entries(struct f2fs_sb_info *sbi, struct cp_control *cpc)
-{
-	struct f2fs_nm_info *nm_i = NM_I(sbi);
-	struct nat_entry_set *setvec[SETVEC_SIZE];
-	struct nat_entry_set *set, *tmp;
-	unsigned int found;
-	nid_t set_idx = 0;
-	LIST_HEAD(sets);
-	int err = 0;
-	bool merge = false;
-
-	if (!nm_i->nat_cnt[DIRTY_NAT])
-		return 0;
-	
-	if((cpc->reason & CP_UMOUNT) ||
-			!has_curlog_space(sbi, NM_I(sbi)->nat_cnt[DIRTY_NAT], NAT_LOG))
-		merge = true;
-
-	down_write(&nm_i->nat_tree_lock);
-
-	//add dirty nat entries in a tmp nat entry set
-	while ((found = __gang_lookup_nat_set(nm_i,
-					set_idx, SETVEC_SIZE, setvec))) {
-		unsigned idx;
-
-		set_idx = setvec[found - 1]->set + 1;
-		for (idx = 0; idx < found; idx++)
-			__adjust_nat_entry_set(setvec[idx], &sets, 0);
-	}
-
-	/* flush dirty nats in nat entry set */
-	list_for_each_entry_safe(set, tmp, &sets, set_list) {
-		//printk("(%s : %d) before call __flush_nat_entry_set, set no : %u",
-	//	__func__, __LINE__, set->set);
-		err = __flush_nat_entry_set(sbi, set, cpc);
-		if (err)
-			break;
-	}
-
-	up_write(&nm_i->nat_tree_lock);
-	/* Allow dirty nats by node block allocation in write_begin */
-	if(merge)
-		err = merge_nat(sbi);
 
 	f2fs_submit_merged_write(sbi, META);
 
 	return err;
 }
-#endif /* DELAYED_MERGE */
 #else
 static int __flush_nat_entry_set(struct f2fs_sb_info *sbi,
 		struct nat_entry_set *set, struct cp_control *cpc)
@@ -3941,12 +3733,8 @@ static int init_node_manager(struct f2fs_sb_info *sbi)
 	INIT_RADIX_TREE(&nm_i->nat_root, GFP_NOIO);
 	INIT_RADIX_TREE(&nm_i->nat_set_root, GFP_NOIO);
 #if META_FOR_ZNS
-#if DELAYED_MERGE
 	INIT_RADIX_TREE(&nm_i->nat_log_root[0], GFP_NOIO);
 	INIT_RADIX_TREE(&nm_i->nat_log_root[1], GFP_NOIO);
-#else
-	INIT_RADIX_TREE(&nm_i->nat_log_root, GFP_NOIO);
-#endif
 #endif
 	INIT_LIST_HEAD(&nm_i->nat_entries);
 	spin_lock_init(&nm_i->nat_list_lock);

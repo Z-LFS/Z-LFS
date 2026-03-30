@@ -658,10 +658,6 @@ static void release_victim_entry(struct f2fs_sb_info *sbi)
  * which has minimum valid blocks and removes it from dirty seglist.
  */
 
-#if 0//DEBUG_GC
-static unsigned int avoid_secno = NULL_SEGNO;
-#endif
-
 /* STRIPE */
 /* TODO: check inuse of section not to select section in ZSet as a victim */
 static int get_victim_by_default(struct f2fs_sb_info *sbi,
@@ -679,7 +675,7 @@ static int get_victim_by_default(struct f2fs_sb_info *sbi,
 #if IGZO
   int i;
   int target_IG = 0;
-  int free_cnt = SM_I(sbi)->free_sz_cnt[0];
+  int free_cnt, prefree_cnt;
 #endif
 
 	mutex_lock(&dirty_i->seglist_lock);
@@ -741,10 +737,18 @@ retry:
 			goto got_it;
 	}
 #if IGZO
+	/*
+	 * If GC is triggered by per-IG free section threshold,
+	 * we should select a victim from the IG with the fewest free sections.
+	 */
+  free_cnt = SM_I(sbi)->free_sz_cnt[0];
+  prefree_cnt = SM_I(sbi)->prefree_sz_cnt[0];
   for (i = 1; i < IG_NR; i++) {
-    if (SM_I(sbi)->free_sz_cnt[i] < free_cnt) {
+    if ((SM_I(sbi)->free_sz_cnt[i] + SM_I(sbi)->prefree_sz_cnt[i])
+        < free_cnt + prefree_cnt) {
       target_IG = i;
       free_cnt = SM_I(sbi)->free_sz_cnt[i];
+      prefree_cnt = SM_I(sbi)->prefree_sz_cnt[i];
     }
   }
 #endif
@@ -783,7 +787,9 @@ retry:
 
 		secno = GET_SEC_FROM_SEG(sbi, segno);
 #if IGZO
-    if (GET_IG_FROM_SEC(sbi, secno) != target_IG) {
+		/* If a target IG is set, only select victims from that IG. */
+		if (target_IG != -1 &&
+				GET_IG_FROM_SEC(sbi, secno) != target_IG) {
       goto next;
     }
 #endif
@@ -938,7 +944,7 @@ static int gc_node_segment(struct f2fs_sb_info *sbi,
 		struct f2fs_summary *sum, unsigned int segno, int gc_type)
 {
 	struct f2fs_summary *entry;
-	block_t start_addr;
+	block_t start_addr, start_viraddr;
 	int off;
 	int phase = 0;
 	bool fggc = (gc_type == FG_GC);
@@ -959,8 +965,8 @@ next_step:
 		struct node_info ni;
 		int err;
 
-#if GRID_STRIPE
     block_t target_blkaddr;
+#if !SEP_SSA
     unsigned int grid_zoff, grid_blkoff;
     unsigned int blks_per_subseg;
 #endif
@@ -999,25 +1005,25 @@ next_step:
 			continue;
 		}
 
-#if GRID_STRIPE
-    blks_per_subseg = BLKS_PER_SUBSEG(sbi);
-
     if ((SM_I(sbi)->grid_cnt) < 2) {
       target_blkaddr = start_addr + off;
     } else {
-
+#if SEP_SSA
+      start_viraddr = SEG_TO_VIRADDR(sbi, segno);
+      target_blkaddr = virt_to_logical_from_block0(sbi,
+        start_viraddr + off, GET_SEC_FROM_SEG(sbi, segno));
+#else
+      blks_per_subseg = BLKS_PER_SUBSEG(sbi);
       grid_zoff = off / blks_per_subseg;
       grid_blkoff = off % blks_per_subseg;
 
       target_blkaddr = start_addr + 
         grid_zoff * sbi->blocks_per_blkz + grid_blkoff;
-    }
-    //need offset traslation
-		if (ni.blk_addr != target_blkaddr)
-#else
-		if (ni.blk_addr != start_addr + off)
 #endif
-   {
+    }
+
+		if (ni.blk_addr != target_blkaddr)
+    {
 			f2fs_put_page(node_page, 1);
 			continue;
 		}
@@ -1065,7 +1071,6 @@ block_t f2fs_start_bidx_of_node(unsigned int node_ofs, struct inode *inode)
 	return bidx * ADDRS_PER_BLOCK(inode) + ADDRS_PER_INODE(inode);
 }
 
-static unsigned int dbg_gc_cnt = 0;
 static bool is_alive(struct f2fs_sb_info *sbi, struct f2fs_summary *sum,
 		struct node_info *dni, block_t blkaddr, unsigned int *nofs, int dbg)
 {
@@ -1105,19 +1110,6 @@ static bool is_alive(struct f2fs_sb_info *sbi, struct f2fs_summary *sum,
 	source_blkaddr = data_blkaddr(NULL, node_page, ofs_in_node);
 	f2fs_put_page(node_page, 1);
 
-#if DEBUG_GC
-/*
-  if (dbg_gc_cnt < 50) {
-    printk("(%s:%d) test blkaddr: blk from node:%u, seg blk:%u, sum_version %u", 
-      __func__, __LINE__, source_blkaddr, blkaddr, sum->version);
-  }
-*/
-//  if (dbg) {
-    printk("(%s:%d)segno:%u,addr1:%u,addr2:%u,nid:%u,ofs:%u,node:%u",
-      __func__, __LINE__, GET_SEGNO(sbi, blkaddr), source_blkaddr, blkaddr, nid, ofs_in_node, dni->blk_addr);
-//  }
-#endif
-
 	if (source_blkaddr != blkaddr) {
 #ifdef CONFIG_F2FS_CHECK_FS
 		unsigned int segno = GET_SEGNO(sbi, blkaddr);
@@ -1134,21 +1126,7 @@ static bool is_alive(struct f2fs_sb_info *sbi, struct f2fs_summary *sum,
 			}
 		}
 #endif
-    if (!dbg_gc_cnt){
-      dump_stack();
-      dbg_gc_cnt = 1;
-    }
-#if DEBUG_GC
-    printk("blkaddr error!!");
-/*
-    if (dbg) {
-      printk("(%s:%d) blkaddr error: blk from node:%u, seg blk:%u, sum_version %u", 
-        __func__, __LINE__, source_blkaddr, blkaddr, sum->version);
-      printk("(%s:%d) is inode? %d, nid %u, ofs_in_node %u, node lba: %u",
-        __func__, __LINE__, IS_INODE(node_page), nid, ofs_in_node, dni->blk_addr);
-    }
-*/
-#endif
+    WARN_ON_ONCE(1);
 		return false;
 	}
 	return true;
@@ -1425,10 +1403,7 @@ static int move_data_page(struct inode *inode, block_t bidx, int gc_type,
 	struct page *page;
 	int err = 0;
 
-//  ktime_get_raw_ts64(&ts_f2fs_mdp[0][0]);
 	page = f2fs_get_lock_data_page(inode, bidx, true);
-//  ktime_get_raw_ts64(&ts_f2fs_mdp[0][1]);
-//  calclock(ts_f2fs_mdp[0], &mdp_time[0], &mdp_cnt[0]);
 	if (IS_ERR(page))
 		return PTR_ERR(page);
 
@@ -1474,11 +1449,7 @@ static int move_data_page(struct inode *inode, block_t bidx, int gc_type,
 		bool is_dirty = PageDirty(page);
 
 retry:
-//    ktime_get_raw_ts64(&ts_f2fs_mdp[1][0]);
 		f2fs_wait_on_page_writeback(page, DATA, true, true);
-//    ktime_get_raw_ts64(&ts_f2fs_mdp[1][1]);
-//    calclock(ts_f2fs_mdp[1], &mdp_time[1], &mdp_cnt[1]);
-
 		set_page_dirty(page);
 		if (clear_page_dirty_for_io(page)) {
 			inode_dec_dirty_pages(inode);
@@ -1487,10 +1458,7 @@ retry:
 
 		set_page_private_gcing(page);
 
-//    ktime_get_raw_ts64(&ts_f2fs_mdp[2][0]);
 		err = f2fs_do_write_data_page(&fio);
-//    ktime_get_raw_ts64(&ts_f2fs_mdp[2][1]);
-//    calclock(ts_f2fs_mdp[2], &mdp_time[2], &mdp_cnt[2]);
 		if (err) {
 			clear_page_private_gcing(page);
 			if (err == -ENOMEM) {
@@ -1505,8 +1473,6 @@ out:
 	f2fs_put_page(page, 1);
 	return err;
 }
-//static int is_alive_err = 0;
-//static int cnt_grep = 0;
 
 /*
  * This function tries to get parent node of victim data block, and identifies
@@ -1521,7 +1487,7 @@ static int gc_data_segment(struct f2fs_sb_info *sbi, struct f2fs_summary *sum,
 {
 	struct super_block *sb = sbi->sb;
 	struct f2fs_summary *entry;
-	block_t start_addr;
+	block_t start_addr, start_viraddr;
 	int off;
 	int phase = 0;
 	int submitted = 0;
@@ -1530,14 +1496,6 @@ static int gc_data_segment(struct f2fs_sb_info *sbi, struct f2fs_summary *sum,
   int dbg = 1;
 	start_addr = START_BLOCK(sbi, segno);
   
-//  struct timespec64 ts[5][2];
-//  unsigned long long phaseTime[5] = {0,};
-//  unsigned long long phaseCnt[5] = {0,};
-#if DEBUG_GC
-  //printk("(%s:%d) segno: %u", __func__, __LINE__, segno);
-  //if (gc_type == FG_GC)
-  //  dbg_gc_cnt++;
-#endif
 next_step:
 	entry = sum;
 
@@ -1548,27 +1506,12 @@ next_step:
 		unsigned int ofs_in_node, nofs;
 		block_t start_bidx;
 		nid_t nid = le32_to_cpu(entry->nid);
-#if GRID_STRIPE
     block_t target_blkaddr;
+#if !SEP_SSA
     unsigned int grid_zoff, grid_blkoff;
     unsigned int blks_per_subseg;
 #endif
 
-#if GRID_STRIPE
-    blks_per_subseg = BLKS_PER_SUBSEG(sbi);
-
-    if ((SM_I(sbi)->grid_cnt) < 2) {
-      target_blkaddr = start_addr + off;
-    } else {
-
-      grid_zoff = off / blks_per_subseg;
-      grid_blkoff = off % blks_per_subseg;
-
-      target_blkaddr = start_addr + 
-        grid_zoff * sbi->blocks_per_blkz + grid_blkoff;
-    }
-    //need offset traslation
-#endif
 		/*
 		 * stop BG_GC if there is not enough free sections.
 		 * Or, stop GC if the segment becomes fully valid caused by
@@ -1583,83 +1526,53 @@ next_step:
 			continue;
 
 		if (phase == 0) {
-//      ktime_get_raw_ts64(&ts[phase][0]);
 			f2fs_ra_meta_pages(sbi, NAT_BLOCK_OFFSET(nid), 1,
 							META_NAT, true);
-//      ktime_get_raw_ts64(&ts[phase][1]);
-//      calclock(ts[phase], &phaseTime[phase], &phaseCnt[phase]);
 			continue;
 		}
 
 		if (phase == 1) {
-//      ktime_get_raw_ts64(&ts[phase][0]);
 			f2fs_ra_node_page(sbi, nid);
-//      ktime_get_raw_ts64(&ts[phase][1]);
-//      calclock(ts[phase], &phaseTime[phase], &phaseCnt[phase]);
 			continue;
 		}
-
-#if GRID_STRIPE
-    blks_per_subseg = BLKS_PER_SUBSEG(sbi);
 
     if ((SM_I(sbi)->grid_cnt) < 2) {
       target_blkaddr = start_addr + off;
     } else {
-
+#if SEP_SSA
+      start_viraddr = SEG_TO_VIRADDR(sbi, segno);
+      target_blkaddr = virt_to_logical_from_block0(sbi,
+        start_viraddr + off, GET_SEC_FROM_SEG(sbi, segno));
+#else
+      blks_per_subseg = BLKS_PER_SUBSEG(sbi);
       grid_zoff = off / blks_per_subseg;
       grid_blkoff = off % blks_per_subseg;
 
       target_blkaddr = start_addr + 
         grid_zoff * sbi->blocks_per_blkz + grid_blkoff;
-    }
-    //need offset traslation
 #endif
+    }
+
+
     if (gc_type == FG_GC) {
 		/* Get an inode by ino with checking validity */
-//      if(unlikely(!is_alive_err)){
-//        printk("(%s:%d) segno: %u, cnt: %d", __func__, __LINE__, segno, cnt_grep);
-//      }
-//      cnt_grep++;
-#if GRID_STRIPE
       if (!is_alive(sbi, entry, &dni, target_blkaddr, &nofs, dbg)) {
-#else
-      if (!is_alive(sbi, entry, &dni, start_addr + off, &nofs, dbg)) {
-#endif
-//        is_alive_err = 1;
-  #if DEBUG_GC
-
-        if(dbg)
-          printk("(%s:%d) not alive: segno:%u, start_addr:%u, off:%u",
-            __func__, __LINE__, segno, start_addr, off);
-//        dbg = 0;
-
-        //avoid_secno = GET_SEC_FROM_SEG(sbi, segno);
-  #endif
         continue;
       }
     } else {
-
-#if GRID_STRIPE
       if (!is_alive(sbi, entry, &dni, target_blkaddr, &nofs, 0)) {
-#else
-      if (!is_alive(sbi, entry, &dni, start_addr + off, &nofs, 0)) {
-#endif
         continue;
       }
     }
 
 		if (phase == 2) {
-//      ktime_get_raw_ts64(&ts[phase][0]);
 			f2fs_ra_node_page(sbi, dni.ino);
-//      ktime_get_raw_ts64(&ts[phase][1]);
-//      calclock(ts[phase], &phaseTime[phase], &phaseCnt[phase]);
 			continue;
 		}
 
 		ofs_in_node = le16_to_cpu(entry->ofs_in_node);
 
 		if (phase == 3) {
-//      ktime_get_raw_ts64(&ts[phase][0]);
 			inode = f2fs_iget(sb, dni.ino);
 			if (IS_ERR(inode) || is_bad_inode(inode) ||
 					special_file(inode->i_mode)) {
@@ -1701,13 +1614,10 @@ next_step:
 
 			f2fs_put_page(data_page, 0);
 			add_gc_inode(gc_list, inode);
-//      ktime_get_raw_ts64(&ts[phase][1]);
-//      calclock(ts[phase], &phaseTime[phase], &phaseCnt[phase]);
 			continue;
 		}
 
 		/* phase 4 */
-//    ktime_get_raw_ts64(&ts[phase][0]);
 		inode = find_gc_inode(gc_list, dni.ino);
 		if (inode) {
 			struct f2fs_inode_info *fi = F2FS_I(inode);
@@ -1753,23 +1663,10 @@ next_step:
 
 			stat_inc_data_blk_count(sbi, 1, gc_type);
 		}
-//    ktime_get_raw_ts64(&ts[phase][1]);
-//    calclock(ts[phase], &phaseTime[phase], &phaseCnt[phase]);
 	}
 
 	if (++phase < 5)
 		goto next_step;
-/*
-	printk("%llu %llu %llu %llu %llu %llu %llu %llu %llu %llu",
-    phaseTime[0], phaseTime[1],phaseTime[2],phaseTime[3],phaseTime[4],
-    phaseCnt[0], phaseCnt[1],phaseCnt[2],phaseCnt[3],phaseCnt[4]);
-  printk("%llu %llu %llu %llu", mdp_time[0], mdp_time[1], mdp_time[2], mdp_time[3]);
-  int i;
-  for (i=0;i<4;i++){
-    mdp_time[i] = 0;
-    mdp_cnt[i] = 0;
-  }
-*/
 	return submitted;
 }
 
@@ -1801,21 +1698,10 @@ static int do_garbage_collect(struct f2fs_sb_info *sbi,
 						SUM_TYPE_DATA : SUM_TYPE_NODE;
 	int submitted = 0;
 
-  struct timespec64 ts_dogc[2];
-  struct timespec64 ts_total[2];
-  unsigned long long dogcTime = 0, dogcCnt = 0;
-  unsigned long long gcTotalTime = 0 , gcTotalCnt = 0;
-
-#if META_FOR_ZNS && !NAIVE_MFZ
+#if META_FOR_ZNS
   struct ssa_set *head;
   struct radix_tree_root *root;
 #endif 
-  
-  ktime_get_raw_ts64(&ts_total[0]);
-
-#if  DEBUG_GC
-  printk("(%s:%d) gc start", __func__, __LINE__);
-#endif
 
 	if (__is_large_section(sbi))
 		end_segno = rounddown(end_segno, sbi->segs_per_sec);
@@ -1830,15 +1716,7 @@ static int do_garbage_collect(struct f2fs_sb_info *sbi,
 					f2fs_usable_segs_in_sec(sbi, segno);
 
 	sanity_check_seg_type(sbi, get_seg_entry(sbi, segno)->type);
-#if DELAYED_MERGE
   down_read(&SM_I(sbi)->ssa_ltree_slock); // B:this works 2 times with B`
-#endif
-	/* readahead multi ssa blocks those have contiguous address */
-#if !META_FOR_ZNS && !DELAYED_MERGE
-	if (__is_large_section(sbi))
-		f2fs_ra_meta_pages(sbi, GET_SUM_BLOCK(sbi, segno),
-					end_segno - segno, META_SSA, true);
-#endif
 
 	/* reference all summary page */
 // request read IO for summary page here
@@ -1854,9 +1732,6 @@ static int do_garbage_collect(struct f2fs_sb_info *sbi,
 				f2fs_put_page(sum_page, 0);
 				f2fs_put_page(sum_page, 0);
 			}
-#if  DEBUG_GC
-      printk("(%s:%d) gc end with error", __func__, __LINE__);
-#endif
 			return err;
 		}
 		unlock_page(sum_page);
@@ -1884,10 +1759,8 @@ static int do_garbage_collect(struct f2fs_sb_info *sbi,
 // lock (GC <-> merge thread) -> just see log tree
 //
 		sum = page_address(sum_page);
-#if META_FOR_ZNS && !NAIVE_MFZ
-#if DELAYED_MERGE
+#if META_FOR_ZNS 
     //search log and merge tree
-//    down_read(&SM_I(sbi)->ssa_ltree_slock);
     root = &SM_I(sbi)->ssa_log_root[SM_I(sbi)->cur_log_tree_idx];
     head = radix_tree_lookup(root, segno); 
 
@@ -1902,10 +1775,6 @@ static int do_garbage_collect(struct f2fs_sb_info *sbi,
         memcpy(&sum->footer, &head->footer, SUM_FOOTER_SIZE);
       }
     }
-//    up_read(&SM_I(sbi)->ssa_ltree_slock);
-#else // DELAYED_MERGE
-Not implemented
-#endif // DELAYED_MERGE
 #endif // META_FOR_ZNS
 		if (type != GET_SUM_TYPE((&sum->footer))) {
 			f2fs_err(sbi, "Inconsistent segment (%u) type [%d, %d] in SSA and SIT during GC",
@@ -1924,32 +1793,15 @@ Not implemented
 		 *   - down_read(sentry_lock)     - change_curseg()
 		 *                                  - lock_page(sum_page)
 		 */
-    ktime_get_raw_ts64(&ts_dogc[0]);
 		if (type == SUM_TYPE_NODE) {
-#if DEBUG_GC
-      if (gc_type == FG_GC)
-        printk("(%s:%d) node gc vblock count: %u",
-          __func__, __LINE__, get_valid_blocks(sbi, segno, false));
-#endif
 			submitted += gc_node_segment(sbi, sum->entries, segno,
 								gc_type);
     }
 		else {
-#if DEBUG_GC
-      if (gc_type == FG_GC)
-        printk("(%s:%d) data gc vblock count: %u",
-          __func__, __LINE__, get_valid_blocks(sbi, segno, false));
-#endif
 			submitted += gc_data_segment(sbi, sum->entries, gc_list,
 							segno, gc_type,
 							force_migrate);
     }
-    ktime_get_raw_ts64(&ts_dogc[1]);
-    calclock(ts_dogc, &dogcTime, &dogcCnt);
-#if DEBUG_GC
-    if (gc_type == FG_GC)
-      printk("(%s:%d) vblock count: %u, submitted %d", __func__, __LINE__, get_valid_blocks(sbi, segno, false), submitted);
-#endif
 		stat_inc_seg_count(sbi, type, gc_type);
 		sbi->gc_reclaimed_segs[sbi->gc_mode]++;
 		migrated++;
@@ -1964,10 +1816,8 @@ freed:
 skip:
 		f2fs_put_page(sum_page, 0);
 	}
-#if DELAYED_MERGE
   // B`:this works 2 times with B`
   up_read(&SM_I(sbi)->ssa_ltree_slock);
-#endif
 
 	if (submitted)
 		f2fs_submit_merged_write(sbi,
@@ -1977,12 +1827,6 @@ skip:
 
 	stat_inc_call_count(sbi->stat_info);
       
-#if DEBUG_GC
-  printk("(%s:%d) gc end, seg_freed: %d", __func__, __LINE__, seg_freed);
-#endif
-  ktime_get_raw_ts64(&ts_total[1]);
-  calclock(ts_total, &gcTotalTime, &gcTotalCnt);
-	printk("gc time: %llu %llu", gcTotalTime, dogcTime);
 	return seg_freed;
 }
 
@@ -2001,13 +1845,11 @@ int f2fs_gc(struct f2fs_sb_info *sbi, bool sync,
 	unsigned long long last_skipped = sbi->skipped_atomic_files[FG_GC];
 	unsigned long long first_skipped;
 	unsigned int skipped_round = 0, round = 0;
+	struct f2fs_sm_info *sm_i = SM_I(sbi);
 
-  struct timespec64 ts_f2fs_gc[6][2];
-  unsigned long long time[6] = {0, };
-  unsigned long long cnt[6] = {0, };
-#if DEBUG_GC
-  printk("(%s:%d) f2fs_gc start", __func__, __LINE__);
-#endif
+
+int i;
+
 	trace_f2fs_gc_begin(sbi->sb, sync, background,
 				get_pages(sbi, F2FS_DIRTY_NODES),
 				get_pages(sbi, F2FS_DIRTY_DENTS),
@@ -2020,7 +1862,6 @@ int f2fs_gc(struct f2fs_sb_info *sbi, bool sync,
 	cpc.reason = __get_cp_reason(sbi);
 	sbi->skipped_gc_rwsem = 0;
 	first_skipped = last_skipped;
-  ktime_get_raw_ts64(&ts_f2fs_gc[2][0]);
 gc_more:
 	if (unlikely(!(sbi->sb->s_flags & SB_ACTIVE))) {
 		ret = -EINVAL;
@@ -2031,42 +1872,46 @@ gc_more:
 		goto stop;
 	}
 
-	if (gc_type == BG_GC && has_not_enough_free_secs(sbi, 0, 0)) {
-		/*
-		 * For example, if there are many prefree_segments below given
-		 * threshold, we can make them free by checkpoint. Then, we
-		 * secure free segments which doesn't need fggc any more.
-		 */
-		if (prefree_segments(sbi) &&
-				!is_sbi_flag_set(sbi, SBI_CP_DISABLED)) {
-			ret = f2fs_write_checkpoint(sbi, &cpc);
-			if (ret)
-				goto stop;
-		}
-		if (has_not_enough_free_secs(sbi, 0, 0))
-			gc_type = FG_GC;
-	}
+  if (gc_type == BG_GC && (has_not_enough_free_secs(sbi, 0, 0))) {
+    /*
+     * For example, if there are many prefree_segments below given
+     * threshold, we can make them free by checkpoint. Then, we
+     * secure free segments which doesn't need fggc any more.
+     */
+    if (prefree_segments(sbi) &&
+        !is_sbi_flag_set(sbi, SBI_CP_DISABLED)) {
+      ret = f2fs_write_checkpoint(sbi, &cpc);
+      if (ret)
+        goto stop;
+    }
+    if (has_not_enough_free_secs(sbi, 0, 0)) {
+      gc_type = FG_GC;
+    }
+  }
 
 	/* f2fs_balance_fs doesn't need to do BG_GC in critical path. */
 	if (gc_type == BG_GC && !background) {
 		ret = -EINVAL;
 		goto stop;
 	}
-  ktime_get_raw_ts64(&ts_f2fs_gc[0][0]);
+	spin_lock(&sm_i->ig_lock);
 	ret = __get_victim(sbi, &segno, gc_type);
-  ktime_get_raw_ts64(&ts_f2fs_gc[0][1]);
-  calclock(ts_f2fs_gc[0], &time[0], &cnt[0]);
-	if (ret)
+	if (ret) {
+		spin_unlock(&sm_i->ig_lock);
 		goto stop;
+	}
+	spin_unlock(&sm_i->ig_lock);
 
-  ktime_get_raw_ts64(&ts_f2fs_gc[1][0]);
 	seg_freed = do_garbage_collect(sbi, segno, &gc_list, gc_type, force);
-  ktime_get_raw_ts64(&ts_f2fs_gc[1][1]);
-  calclock(ts_f2fs_gc[1], &time[1], &cnt[1]);
-
+	spin_lock(&sm_i->ig_lock);
 	if (gc_type == FG_GC &&
-		seg_freed == f2fs_usable_segs_in_sec(sbi, segno))
+		seg_freed == f2fs_usable_segs_in_sec(sbi, segno)) {
 		sec_freed++;
+#if IGZO
+		SM_I(sbi)->prefree_sz_cnt[GET_IG_FROM_SEG(sbi, segno)]++;
+#endif
+	}
+	spin_unlock(&sm_i->ig_lock);
 	total_freed += seg_freed;
 
 	if (gc_type == FG_GC) {
@@ -2087,9 +1932,6 @@ gc_more:
 		if (skipped_round <= MAX_SKIP_GC_COUNT ||
 					skipped_round * 2 < round) {
 			segno = NULL_SEGNO;
-#if DEBUG_GC
-      printk("(%s:%d) gc more 1", __func__, __LINE__);
-#endif
 			goto gc_more;
 		}
 
@@ -2098,14 +1940,12 @@ gc_more:
 						sbi->skipped_gc_rwsem) {
 			f2fs_drop_inmem_pages_all(sbi, true);
 			segno = NULL_SEGNO;
-#if DEBUG_GC
-      printk("(%s:%d) gc more 2", __func__, __LINE__);
-#endif
 			goto gc_more;
 		}
 		if (gc_type == FG_GC && !is_sbi_flag_set(sbi, SBI_CP_DISABLED))
 			ret = f2fs_write_checkpoint(sbi, &cpc);
 	}
+
 stop:
 	SIT_I(sbi)->last_victim[ALLOC_NEXT] = 0;
 	SIT_I(sbi)->last_victim[FLUSH_DEVICE] = init_segno;
@@ -2122,13 +1962,6 @@ stop:
 	up_write(&sbi->gc_lock);
 
 	put_gc_inode(&gc_list);
-#if DEBUG_GC
-  printk("(%s:%d) f2fs_gc end, sec_freed %d", __func__, __LINE__, sec_freed);
-#endif
-  ktime_get_raw_ts64(&ts_f2fs_gc[2][1]);
-  calclock(ts_f2fs_gc[2], &time[2], &cnt[2]);
-  //if (time[0] > 0)
-  //  printk("%llu %llu %llu %llu %llu %llu", time[0], cnt[0], time[1], cnt[1], time[2], cnt[2]);
 	if (sync && !ret)
 		ret = sec_freed ? 0 : -EAGAIN;
 	return ret;

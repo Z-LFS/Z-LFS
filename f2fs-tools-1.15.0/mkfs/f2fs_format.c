@@ -709,6 +709,12 @@ static int f2fs_prepare_super_block(void)
 							total_meta_zones;
 	MSG(1, "(%s:%d) total segs : %u, total zones : %u\n",
 			__func__, __LINE__, get_sb(segment_count), total_zones);
+#if GRID_STRIPE
+	total_zones = total_zones / GRID_CNT * GRID_CNT;
+	MSG(1, "(%s:%d) total zones aligned by GRID_CNT(%d) : %u\n",
+			__func__, __LINE__, GRID_CNT, total_zones);
+	set_sb(segment_count, (total_zones + total_meta_zones) * c.segs_per_zone);
+#endif
 	MSG(1, "(%s:%d) total meta zones : %lu\n",
 			__func__, __LINE__, total_meta_zones);
 
